@@ -1,0 +1,10 @@
+[Unit]
+Description=Main ldms application
+
+[Service]
+ExecStart = /usr/bin/ldms 
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
