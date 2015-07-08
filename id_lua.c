@@ -14,6 +14,8 @@
 #include <time.h>
 #include <dirent.h>
 
+#define BOX_ID_SIZE 8
+#define BOARD_ID_SIZE 6
 typedef struct {
     char box_id_path[128];
     char board_id_path[128];
@@ -50,21 +52,23 @@ static int lid_destroy(lua_State *L)
 static int lid_get_board_id(lua_State *L)
 {
     FILE *fp;
-    char board_id[6];
-    char board_id_str[13];
+    char board_id_buf[BOARD_ID_SIZE];
+    char board_id_str[2 * BOARD_ID_SIZE + 1];
+    int ret, ptr = 0;
     lid_userdata_t *su;
     su = (lid_userdata_t *)luaL_checkudata(L, 1, "Lid");
 
-    // fp = fopen("/sys/class/net/eth0/address", "r");
-    fprintf(stderr, "%s", su->board_id_path);
+    /* read unique ID from EEPROM, valid data in last BOARD_ID_SIZE bytes */
     fp = fopen(su->board_id_path, "r");
-
-    if (!fseek(fp, -6, SEEK_END))
-        snprintf(board_id_str, 12, "            ");
-    fread(&board_id, sizeof(board_id), 1, fp);
+    if (!fseek(fp, -BOARD_ID_SIZE, SEEK_END))
+        snprintf(board_id_str, 1, " ");
+    fread(&board_id_buf, sizeof(board_id_buf), 1, fp);
     fclose(fp);
-    snprintf(board_id_str, 12, "%X%X%X%X%X%X", board_id[0], board_id[1], board_id[2],
-            board_id[3], board_id[4], board_id[5]);
+    /* Bytewise convert number to hexadecimal ASCII representation */
+    for (ret = 0; ret < BOARD_ID_SIZE; ret++) {
+        ptr += snprintf(board_id_str + ptr, sizeof board_id_str - ptr, "%.2X", board_id_buf[ret]);
+    }
+
     lua_pushstring(L, board_id_str);
     return 1;
 }
@@ -72,7 +76,6 @@ static int lid_get_board_id(lua_State *L)
 static int lid_get_box_id(lua_State *L)
 {
     static char box_id_str[20] = {' '};
-    // const char *dir_name = "/var/lib/w1/bus.0/bus.0";
     struct dirent *d_entp;
     DIR *dp;
     FILE *fp;
@@ -99,7 +102,7 @@ static int lid_get_box_id(lua_State *L)
                 return 1;
             }
             fp = fopen(path, "r");
-            if (fgets(box_id_str, 17, fp) == NULL) {
+            if (fgets(box_id_str, 2 * BOX_ID_SIZE + 1, fp) == NULL) {
                 lua_pushstring(L, " ");
                 return 1;
             }
