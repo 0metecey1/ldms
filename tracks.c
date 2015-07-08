@@ -20,7 +20,8 @@
 #define LMU_I2C_ADDRESS 0x74
 #define LED_SPI_BUS "/dev/spidev2.0"
 #define HW_BOARD_ID_PATH "/sys/bus/i2c/devices/0-0050/eeprom"
-#define HW_BOX_ID_PATH "/var/lib/w1/bus.0/bus.0"
+//#define HW_BOX_ID_PATH "/var/lib/w1/bus.0/bus.0"
+#define HW_BOX_ID_PATH "/var/lib/w1/bus.0"
 
 /* print an error message */
 #define luai_writestring(s,l)	fwrite((s), sizeof(char), (l), stdout)

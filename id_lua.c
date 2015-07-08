@@ -50,16 +50,22 @@ static int lid_destroy(lua_State *L)
 static int lid_get_board_id(lua_State *L)
 {
     FILE *fp;
-    char mac_addr_str[18];
+    char board_id[6];
+    char board_id_str[13];
     lid_userdata_t *su;
     su = (lid_userdata_t *)luaL_checkudata(L, 1, "Lid");
 
     // fp = fopen("/sys/class/net/eth0/address", "r");
+    fprintf(stderr, "%s", su->board_id_path);
     fp = fopen(su->board_id_path, "r");
-    if (fgets(mac_addr_str, 18, fp) == NULL)
-        snprintf(mac_addr_str, 18, "                 ");
+
+    if (!fseek(fp, -6, SEEK_END))
+        snprintf(board_id_str, 12, "            ");
+    fread(&board_id, sizeof(board_id), 1, fp);
     fclose(fp);
-    lua_pushstring(L, mac_addr_str);
+    snprintf(board_id_str, 12, "%X%X%X%X%X%X", board_id[0], board_id[1], board_id[2],
+            board_id[3], board_id[4], board_id[5]);
+    lua_pushstring(L, board_id_str);
     return 1;
 }
 
