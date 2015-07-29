@@ -19,11 +19,27 @@
 
 typedef struct {
     mcdc04_t *s;
+    double **m; /* 3-by-3 calibration matrix */
     /* Calibrated color coordinate according to CIE 1931, 2 observer */
 } lmcdc04_userdata_t;
 
 const int iref_tbl[] = {2, 2, 1, 1, 0, 0, 0, 0, 0};
 const int tint_tbl[] = {6, 7, 6, 7, 6, 7, 8, 9, 10};
+
+static void matrix_init(double ***A, int r, int c)
+{
+    int i, j;
+    *A = (double **)malloc(sizeof(double *)*r);
+    for( i = 0; i< r; i++) {
+        (*A)[i] = (double *)malloc(sizeof(double) *c);
+        for( j = 0; j < c; j++) {
+            if (i == j)
+                (*A)[i][j] = 1.0;
+            else
+                (*A)[i][j] = 0.0;
+        }
+    }
+}
 
 static int lmcdc04_new(lua_State *L)
 {
@@ -43,6 +59,8 @@ static int lmcdc04_new(lua_State *L)
      * that happens we want the userdata to be in a consistent state for __gc. */
     su       = (lmcdc04_userdata_t *)lua_newuserdata(L, sizeof(*su));
     su->s    = NULL;
+
+    matrix_init(&(su->m), 3, 3);
 
     /* Add the metatable to the stack. */
     luaL_getmetatable(L, "Lmcdc04");
@@ -134,7 +152,7 @@ static int lmcdc04_auto_adjust_gain(lua_State *L)
 
     while ((gain_idx >= 0) && (gain_idx < ARRAYSIZE(iref_tbl)))
     {
-    /* set reference current and integration time */
+        /* set reference current and integration time */
         mcdc04_set_iref(su->s, iref_tbl[gain_idx]);
         mcdc04_set_tint(su->s, tint_tbl[gain_idx]);
         /* do the measurement, reads all values at the same time */
@@ -163,6 +181,52 @@ static int lmcdc04_auto_adjust_gain(lua_State *L)
     return 1;
 }
 
+static double vectors_dot_prod(const double *x, const double *y, int n)
+{
+    double res = 0.0;
+    int i;
+    for (i = 0; i < n; i++)
+    {
+        res += x[i] * y[i];
+    }
+    return res;
+}
+
+static void matrix_vector_mult(const double **mat, const double *vec, double *result, int rows, int cols)
+{ // in matrix form: result = mat * vec;
+    int i;
+    for (i = 0; i < rows; i++)
+    {
+        result[i] = vectors_dot_prod(mat[i], vec, cols);
+    }
+}
+
+static int lmcdc04_apply_calibration(lua_State *L)
+{
+    int ch;
+    double val, sum, s[3], t[3];
+    lmcdc04_userdata_t *su;
+
+    su = (lmcdc04_userdata_t *)luaL_checkudata(L, 1, "Lmcdc04");
+    ch = luaL_checkinteger(L, 2); /* channel number, calibration has spatial components */
+    val = luaL_checknumber(L, 3); /*  */
+    sum = val;
+    s[0] = val;
+    val = luaL_checknumber(L, 4); /*  */
+    sum += val;
+    s[1] = val;
+    val = luaL_checknumber(L, 5); /*  */
+    sum += val;
+    s[2] = val;
+    matrix_vector_mult((const double **)(su->m), (const double *)s, t, 3, 3);
+    lua_pushnumber(L, t[0]);
+    lua_pushnumber(L, t[1]);
+    lua_pushnumber(L, t[2]);
+    lua_pushnumber(L, t[0]/sum);
+    lua_pushnumber(L, t[1]/sum);
+    lua_pushnumber(L, t[2]/sum);
+    return 6;
+}
 static int lmcdc04_measure(lua_State *L)
 {
     unsigned int val;
@@ -194,6 +258,7 @@ static const luaL_Reg lmcdc04_methods[] = {
     {"set_measure_mode", lmcdc04_set_measure_mode},
     {"get_max_gain", lmcdc04_get_max_gain},
     {"auto_adjust_gain", lmcdc04_auto_adjust_gain},
+    {"apply_calibration", lmcdc04_apply_calibration},
     {"measure", lmcdc04_measure},
     {"__gc", lmcdc04_destroy},
     {NULL, NULL}

@@ -12,6 +12,7 @@
 #include "ad5522.h"
 #include "mcdc04.h"
 #include "id.h"
+#include "db.h"
 
 #include "waitsupport.h"
 #include "ldms_init.h"
@@ -20,8 +21,14 @@
 #define LMU_I2C_ADDRESS 0x74
 #define LED_SPI_BUS "/dev/spidev2.0"
 #define HW_BOARD_ID_PATH "/sys/bus/i2c/devices/0-0050/eeprom"
-//#define HW_BOX_ID_PATH "/var/lib/w1/bus.0/bus.0"
 #define HW_BOX_ID_PATH "/var/lib/w1/bus.0"
+
+#define NLTS_DB_HOST "192.168.16.15"
+#define NLTS_DB_USER "root"
+#define NLTS_DB_PASS "V0st!novaled#"
+#define NLTS_DB_DATABASE   "nltsdb"
+
+#define LDMS_INIT_FILE "/usr/share/ldms/init.lua"
 
 /* print an error message */
 #define luai_writestring(s,l)	fwrite((s), sizeof(char), (l), stdout)
@@ -125,9 +132,9 @@ s_self_spawn_lua (self_t *self)
     lua_call(self->L, 4, 1);     
     lua_setglobal(self->L, "pmu");
 
+    /* Initialize unique id object and make methods available */
     luaL_requiref(self->L, "id", luaopen_id, true);
-    /* Initialize LED driver object and make methods available */
-    // led = tlc5948a.new("/dev/spidev2.0")
+    // hw = id.new(HW_BOARD_ID_PATH, HW_BOX_ID_PATH)
     //Here it is in C:
     lua_getglobal(self->L, "id");
     lua_getfield(self->L, -1, "new");        
@@ -137,21 +144,20 @@ s_self_spawn_lua (self_t *self)
     lua_call(self->L, 2, 1);     
     lua_setglobal(self->L, "hw");
 
-    /* Initialize auxillary functions and objects */
-    // zsys_info(ldms_init_lua_str);
-    // if (engine_dostring(self->L, ldms_init_lua_str, "ldms_init", NULL, false) != LUA_OK) {
-    //     lua_status_encode(self->root, "error", "could not ldms_init.lua");
-    //     return -1;
-    // }
+    /* Initialize database access object and make methods available */
+    luaL_requiref(self->L, "db", luaopen_db, true);
+    // nlts = db.new(host, user, password)
+    //Here it is in C:
+    lua_getglobal(self->L, "db");
+    lua_getfield(self->L, -1, "new");        
+    lua_remove(self->L, -2);                
+    lua_pushstring(self->L, NLTS_DB_HOST); // path to the file containing the board id
+    lua_pushstring(self->L, NLTS_DB_USER); // path to the file containing the box id
+    lua_pushstring(self->L, NLTS_DB_PASS); // path to the file containing the box id
+    lua_pushstring(self->L, NLTS_DB_DATABASE); // path to the file containing the box id
+    lua_call(self->L, 4, 1);     
+    lua_setglobal(self->L, "nlts");
 
-    //     if (engine_dofile(self->L, "/usr/bin/wait_support.lua", NULL) != LUA_OK) {
-    //         lua_status_encode(self->root, "error", "could not load wait_support.lua");
-    //         return -1;
-    //     }
-    //     if (engine_dofile(self->L, "/usr/bin/ldms_init.lua", NULL) != LUA_OK) {
-    //         lua_status_encode(self->root, "error", "could not load wait_support.lua");
-    //         return -1;
-    //     }
     lua_status_encode(self->root, "ok", "");
     return 0;
 }

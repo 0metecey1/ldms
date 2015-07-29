@@ -3,8 +3,15 @@
  */
 
 #include <czmq.h>
+#include <getopt.h>
 #include "tracks.h"
 
+static bool verbose = true;
+static int port = 3306;
+static const char *host = "192.168.16.15";
+static const char *user = "root";
+static const char *password = "V0st!novaled#";
+static const char *database = "nlts";
 
 // ----------------------------------------------------------------------------
 // Read the mac address of the primary network interface, return as a string
@@ -69,7 +76,8 @@ ldms_main_loop (bool verbose)
     // Create state-based script engine
     zactor_t *actor = zactor_new (tracks, NULL);
     assert (actor);
-    zstr_sendx (actor, "VERBOSE", NULL);
+    if (verbose)
+        zstr_sendx (actor, "VERBOSE", NULL);
     zsock_send (actor, "si", "CONFIGURE", 5560);
     char *hostname = zstr_recv (actor);
     assert (*hostname);
@@ -106,9 +114,59 @@ ldms_main_loop (bool verbose)
     //  @end
 }
 
+static void print_usage(const char *prog)
+{
+	printf("Usage: %s [-vpuPh]\n", prog);
+	puts("  -v --verbose  Print debugging messages\n"
+	     "  -p --port     Port number to use for connection\n"
+	     "  -u --user     User for login if not current user\n"
+	     "  -P --password Password for login\n"
+	     "  -h --host     Connect to host\n"
+         );
+	exit(1);
+}
+
+static void parse_opts(int argc, char *argv[])
+{
+	while (1) {
+		static const struct option lopts[] = {
+			{ "verbose",  1, 0, 'v' },
+			{ "port",  1, 0, 'P' },
+			{ "password",   1, 0, 'p' },
+			{ "user",   1, 0, 'u' },
+			{ "host",   1, 0, 'h' },
+			{ NULL, 0, 0, 0 },
+		};
+		int c;
+
+		c = getopt_long(argc, argv, "v:P:p:u:h", lopts, NULL);
+
+		if (c == -1)
+			break;
+
+		switch (c) {
+		case 'v':
+            verbose = true;
+			break;
+		case 'p':
+            port = atoi(optarg);
+			break;
+		case 'u':
+            user = optarg;
+			break;
+		case 'P':
+            password = optarg;
+			break;
+		default:
+			print_usage(argv[0]);
+			break;
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
-    bool verbose = true;
+    parse_opts(argc, argv);
     ldms_main_loop(verbose);
 
     exit(EXIT_SUCCESS);
