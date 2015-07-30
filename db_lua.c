@@ -16,6 +16,7 @@
 #define MAX_ROW_SIZE 1024
 
 typedef struct {
+    int closed;
     MYSQL *con;
     MYSQL_RES *res;
     char ip_addr[IP_ADDR_BUFSIZE];
@@ -53,6 +54,7 @@ static int ldb_new(lua_State *L)
                 user, password, database, 0, NULL, 0)) {
         luaL_error(L, "%s", mysql_error(su->con));
     }
+    su->closed = 0;
     /* Add the metatable to the stack. */
     luaL_getmetatable(L, "Ldb");
     /* Set the metatable on the userdata. */
@@ -82,10 +84,10 @@ static int ldb_destroy(lua_State *L)
 {
     ldb_userdata_t *su;
     su = (ldb_userdata_t *)lua_newuserdata(L, sizeof(*su));
-    if (su->res != NULL)
-        mysql_free_result(su->res);
-    if (su->con != NULL)
+    if (su->con != NULL && !(su->closed)) {
+        su->closed = 1;
         mysql_close(su->con);
+    }
     return 0;
 }
 

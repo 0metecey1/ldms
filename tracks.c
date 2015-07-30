@@ -79,8 +79,9 @@ static int
 s_self_spawn_lua (self_t *self)
 {
     json_object_clear(self->root);
-    if (self->L != NULL)
+    if (self->L != NULL) {
         lua_close(self->L);
+    }
     self->L = luaL_newstate();
 
     if (self->L == NULL) {
@@ -156,8 +157,12 @@ s_self_spawn_lua (self_t *self)
     lua_pushstring(self->L, NLTS_DB_PASS); // path to the file containing the box id
     lua_pushstring(self->L, NLTS_DB_DATABASE); // path to the file containing the box id
     lua_call(self->L, 4, 1);     
-    lua_setglobal(self->L, "nlts");
+    lua_setglobal(self->L, "nltsdb");
 
+    if (engine_dofile(self->L, LDMS_INIT_FILE, NULL) != LUA_OK) {
+        lua_status_encode(self->root, "error", "could not load init.lua");
+        return -1;
+    }
     lua_status_encode(self->root, "ok", "");
     return 0;
 }
