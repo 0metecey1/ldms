@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <dirent.h>
+#include "config.h"
 
 #define BOX_ID_SIZE 8
 #define BOARD_ID_SIZE 6
@@ -115,9 +116,18 @@ static int lid_get_box_id(lua_State *L)
     return 1;
 }
 
+static int lid_get_firmware_version(lua_State *L)
+{
+    lid_userdata_t *su;
+    su = (lid_userdata_t *)luaL_checkudata(L, 1, "Lid");
+    lua_pushstring(L, PACKAGE_STRING);
+    return 1;
+}
+
 static const luaL_Reg lid_methods[] = {
     {"get_board_id", lid_get_board_id},
     {"get_box_id", lid_get_box_id},
+    {"get_firmware_version", lid_get_firmware_version},
     {"__gc", lid_destroy},
     {NULL, NULL}
 };
