@@ -127,7 +127,7 @@ static int lid_get_firmware_version(lua_State *L)
 static const luaL_Reg lid_methods[] = {
     {"get_board_id", lid_get_board_id},
     {"get_box_id", lid_get_box_id},
-    {"get_firmware_version", lid_get_firmware_version},
+    {"get_version", lid_get_firmware_version},
     {"__gc", lid_destroy},
     {NULL, NULL}
 };

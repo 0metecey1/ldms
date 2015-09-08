@@ -13,6 +13,7 @@
 #include "mcdc04.h"
 #include "id.h"
 #include "db.h"
+#include "dib.h"
 
 #include "waitsupport.h"
 #include "ldms_init.h"
@@ -22,6 +23,8 @@
 #define LED_SPI_BUS "/dev/spidev2.0"
 #define HW_BOARD_ID_PATH "/sys/bus/i2c/devices/0-0050/eeprom"
 #define HW_BOX_ID_PATH "/var/lib/w1/bus.0"
+#define BOT_DIB_W1_PATH "/var/lib/w1/bus.1"
+#define TOP_DIB_W1_PATH "/var/lib/w1/bus.2"
 
 #define NLTS_DB_HOST "192.168.16.15"
 #define NLTS_DB_USER "root"
@@ -68,6 +71,7 @@ s_self_destroy (self_t **self_p)
     if (*self_p) {
         self_t *self = *self_p;
         zsock_destroy(&self->responder);
+        zpoller_destroy (&self->poller);
         lua_close(self->L);
         free (self);
         *self_p = NULL;
@@ -144,6 +148,28 @@ s_self_spawn_lua (self_t *self)
     lua_pushstring(self->L, HW_BOX_ID_PATH); // path to the file containing the box id
     lua_call(self->L, 2, 1);     
     lua_setglobal(self->L, "hw");
+
+    /* Initialize unique id object and make methods available */
+    luaL_requiref(self->L, "dib", luaopen_dib, true);
+    // bot_dib = id.new(BOT_DIB_W1_PATH)
+    //Here it is in C:
+    lua_getglobal(self->L, "dib");
+    lua_getfield(self->L, -1, "new");        
+    lua_remove(self->L, -2);                
+    lua_pushstring(self->L, BOT_DIB_W1_PATH); // path to the file containing the board id
+    lua_call(self->L, 1, 1);     
+    lua_setglobal(self->L, "bot_dib");
+
+    /* Initialize unique id object and make methods available */
+    luaL_requiref(self->L, "dib", luaopen_dib, true);
+    // bot_dib = id.new(BOT_DIB_W1_PATH)
+    //Here it is in C:
+    lua_getglobal(self->L, "dib");
+    lua_getfield(self->L, -1, "new");        
+    lua_remove(self->L, -2);                
+    lua_pushstring(self->L, TOP_DIB_W1_PATH); // path to the file containing the board id
+    lua_call(self->L, 1, 1);     
+    lua_setglobal(self->L, "top_dib");
 
     /* Initialize database access object and make methods available */
     luaL_requiref(self->L, "db", luaopen_db, true);

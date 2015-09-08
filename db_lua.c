@@ -14,12 +14,17 @@
 
 #define IP_ADDR_BUFSIZE 15
 #define MAX_ROW_SIZE 1024
+#define TEXT_BUFSIZE 256
 
 typedef struct {
     int closed;
     MYSQL *con;
     MYSQL_RES *res;
     char ip_addr[IP_ADDR_BUFSIZE];
+    const char *host;
+    const char *user;
+    const char *password;
+    const char *database;
 } ldb_userdata_t;
 
 static void finish_with_error(MYSQL *con)
@@ -33,25 +38,24 @@ static int ldb_new(lua_State *L)
 {
     ldb_userdata_t *su;
     int i;
-    const char *host, *user, *password, *database;
     const char *query = "SELECT SUBSTRING_INDEX(host,':',1) AS 'ip'\n"
         "FROM information_schema.processlist\n"
         "WHERE ID= CONNECTION_ID();";
 
-    host = luaL_checkstring(L, 1);
-    user = luaL_checkstring(L, 2);
-    password = luaL_checkstring(L, 3);
-    database = luaL_checkstring(L, 4);
 
     /* Create the user data pushing it onto the stack. We also pre-initialize
      * the member of the userdata in case initialization fails in some way. If
      * that happens we want the userdata to be in a consistent state for __gc. */
     su = (ldb_userdata_t *)lua_newuserdata(L, sizeof(*su));
 
+    su->host = luaL_checkstring(L, 1);
+    su->user = luaL_checkstring(L, 2);
+    su->password = luaL_checkstring(L, 3);
+    su->database = luaL_checkstring(L, 4);
     su->con = mysql_init(NULL);
     /* Connect to database */
-    if (!mysql_real_connect(su->con, host,
-                user, password, database, 0, NULL, 0)) {
+    if (!mysql_real_connect(su->con, su->host,
+                su->user, su->password, su->database, 0, NULL, 0)) {
         luaL_error(L, "%s", mysql_error(su->con));
     }
     su->closed = 0;
@@ -77,6 +81,8 @@ static int ldb_new(lua_State *L)
         } 
     }
     mysql_free_result(su->res);
+    mysql_close(su->con);
+    su->closed = 1;
     return 1;
 }
 
@@ -108,10 +114,19 @@ static int ldb_push_results(lua_State *L)
             "where D.ID_Sample=P.ID_Sample and P.IPAddress ='%s'"
             " and D.DriverNo=%d", data_str, data_str, su->ip_addr, ch);
 
+    /* Connect to database */
+    if (!mysql_real_connect(su->con, su->host,
+                su->user, su->password, su->database, 0, NULL, 0)) {
+        luaL_error(L, "%s", mysql_error(su->con));
+    }
+    su->closed = 0;
+    /* send query */
     if (mysql_query(su->con, query)) 
     {
         luaL_error(L, "%s", mysql_error(su->con));
     }
+    mysql_close(su->con);
+    su->closed = 1;
     return 0;
 }
 
@@ -119,7 +134,15 @@ static int ldb_pull_calibration(lua_State *L)
 {
     ldb_userdata_t *su;
     su = (ldb_userdata_t *)luaL_checkudata(L, 1, "Ldb");
+    /* Connect to database */
+    if (!mysql_real_connect(su->con, su->host,
+                su->user, su->password, su->database, 0, NULL, 0)) {
+        luaL_error(L, "%s", mysql_error(su->con));
+    }
+    su->closed = 0;
 
+    mysql_close(su->con);
+    su->closed = 1;
     return 0;
 }
 
