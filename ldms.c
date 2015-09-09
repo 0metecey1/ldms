@@ -5,6 +5,7 @@
 #include <czmq.h>
 #include <getopt.h>
 #include "tracks.h"
+#include "config.h"
 
 typedef struct {
     bool verbose;
@@ -95,6 +96,8 @@ int main(int argc, char *argv[])
     zsys_set_logsystem (true);
     /* Ctrl-C and SIGTERM will set zsys_interrupted. */
     zsys_catch_interrupts();
+    /* Show version string */
+    zsys_info("This is %s\n", PACKAGE_STRING);
     // Create state-based script engine
     zactor_t *atracks = zactor_new (tracks, NULL);
     assert (atracks);
