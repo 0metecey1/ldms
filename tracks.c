@@ -71,6 +71,9 @@ s_self_destroy (self_t **self_p)
     assert (self_p);
     if (*self_p) {
         self_t *self = *self_p;
+        if (engine_dofile(self->L, LDMS_EXIT_FILE, NULL) != LUA_OK) {
+            zsys_error("could not load exit.lua");
+        }
         zsock_destroy(&self->responder);
         zpoller_destroy (&self->poller);
         lua_close(self->L);
