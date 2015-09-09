@@ -18,13 +18,11 @@
 
 typedef struct {
     int closed;
-    MYSQL *con;
-    MYSQL_RES *res;
     char ip_addr[IP_ADDR_BUFSIZE];
-    const char *host;
-    const char *user;
-    const char *password;
-    const char *database;
+    char *host;
+    char *user;
+    char *password;
+    char *database;
 } ldb_userdata_t;
 
 static void finish_with_error(MYSQL *con)
@@ -36,8 +34,11 @@ static void finish_with_error(MYSQL *con)
 
 static int ldb_new(lua_State *L)
 {
+    MYSQL *con;
+    MYSQL_RES *res;
     ldb_userdata_t *su;
     int i;
+    const char *host, *user, *password, *database;
     const char *query = "SELECT SUBSTRING_INDEX(host,':',1) AS 'ip'\n"
         "FROM information_schema.processlist\n"
         "WHERE ID= CONNECTION_ID();";
@@ -48,57 +49,65 @@ static int ldb_new(lua_State *L)
      * that happens we want the userdata to be in a consistent state for __gc. */
     su = (ldb_userdata_t *)lua_newuserdata(L, sizeof(*su));
 
-    su->host = luaL_checkstring(L, 1);
-    su->user = luaL_checkstring(L, 2);
-    su->password = luaL_checkstring(L, 3);
-    su->database = luaL_checkstring(L, 4);
-    su->con = mysql_init(NULL);
+    host = luaL_checkstring(L, 1);
+    user = luaL_checkstring(L, 2);
+    password = luaL_checkstring(L, 3);
+    database = luaL_checkstring(L, 4);
+    su->host = strdup(host);
+    su->user = strdup(user);
+    su->password = strdup(password);
+    su->database = strdup(database);
+    con = mysql_init(NULL);
     /* Connect to database */
-    if (!mysql_real_connect(su->con, su->host,
+    if (!mysql_real_connect(con, su->host,
                 su->user, su->password, su->database, 0, NULL, 0)) {
-        luaL_error(L, "%s", mysql_error(su->con));
+        luaL_error(L, "%s", mysql_error(con));
     }
     su->closed = 0;
     /* Add the metatable to the stack. */
     luaL_getmetatable(L, "Ldb");
     /* Set the metatable on the userdata. */
     lua_setmetatable(L, -2);
-    if (mysql_query(su->con, query)) 
+    if (mysql_query(con, query)) 
     {
-        finish_with_error(su->con);
+        finish_with_error(con);
     }
 
-    su->res = mysql_store_result(su->con);
-    int num_fields = mysql_num_fields(su->res);
+    res = mysql_store_result(con);
+    int num_fields = mysql_num_fields(res);
 
     MYSQL_ROW row;
 
-    while ((row = mysql_fetch_row(su->res))) 
+    while ((row = mysql_fetch_row(res))) 
     { 
         for(i = 0; i < num_fields; i++) 
         { 
             snprintf(su->ip_addr, IP_ADDR_BUFSIZE, "%s ", row[i] ? row[i] : "NULL"); 
         } 
     }
-    mysql_free_result(su->res);
-    mysql_close(su->con);
-    su->closed = 1;
+    mysql_free_result(res);
+    if (con != NULL && !(su->closed)) {
+        su->closed = 1;
+        mysql_close(con);
+    }
     return 1;
 }
 
 static int ldb_destroy(lua_State *L)
 {
+    MYSQL *con;
     ldb_userdata_t *su;
     su = (ldb_userdata_t *)lua_newuserdata(L, sizeof(*su));
-    if (su->con != NULL && !(su->closed)) {
+    if (con != NULL && !(su->closed)) {
         su->closed = 1;
-        mysql_close(su->con);
+        mysql_close(con);
     }
     return 0;
 }
 
 static int ldb_push_results(lua_State *L)
 {
+    MYSQL *con;
     ldb_userdata_t *su;
     int ch;
     const char *data_str;
@@ -115,34 +124,41 @@ static int ldb_push_results(lua_State *L)
             " and D.DriverNo=%d", data_str, data_str, su->ip_addr, ch);
 
     /* Connect to database */
-    if (!mysql_real_connect(su->con, su->host,
+    con = mysql_init(NULL);
+    if (!mysql_real_connect(con, su->host,
                 su->user, su->password, su->database, 0, NULL, 0)) {
-        luaL_error(L, "%s", mysql_error(su->con));
+        luaL_error(L, "%s", mysql_error(con));
     }
     su->closed = 0;
     /* send query */
-    if (mysql_query(su->con, query)) 
+    if (mysql_query(con, query)) 
     {
-        luaL_error(L, "%s", mysql_error(su->con));
+        luaL_error(L, "%s", mysql_error(con));
     }
-    mysql_close(su->con);
-    su->closed = 1;
+    if (con != NULL && !(su->closed)) {
+        su->closed = 1;
+        mysql_close(con);
+    }
     return 0;
 }
 
 static int ldb_pull_calibration(lua_State *L)
 {
+    MYSQL *con;
     ldb_userdata_t *su;
     su = (ldb_userdata_t *)luaL_checkudata(L, 1, "Ldb");
     /* Connect to database */
-    if (!mysql_real_connect(su->con, su->host,
+    con = mysql_init(NULL);
+    if (!mysql_real_connect(con, su->host,
                 su->user, su->password, su->database, 0, NULL, 0)) {
-        luaL_error(L, "%s", mysql_error(su->con));
+        luaL_error(L, "%s", mysql_error(con));
     }
     su->closed = 0;
 
-    mysql_close(su->con);
-    su->closed = 1;
+    if (con != NULL && !(su->closed)) {
+        su->closed = 1;
+        mysql_close(con);
+    }
     return 0;
 }
 
