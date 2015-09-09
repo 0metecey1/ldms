@@ -32,6 +32,7 @@
 #define NLTS_DB_DATABASE   "nltsdb"
 
 #define LDMS_INIT_FILE "/usr/share/ldms/init.lua"
+#define LDMS_EXIT_FILE "/usr/share/ldms/exit.lua"
 
 /* print an error message */
 #define luai_writestring(s,l)	fwrite((s), sizeof(char), (l), stdout)
