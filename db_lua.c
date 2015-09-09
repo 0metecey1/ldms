@@ -18,6 +18,7 @@
 
 typedef struct {
     int closed;
+    MYSQL mysql, *con;
     char ip_addr[IP_ADDR_BUFSIZE];
     char *host;
     char *user;
@@ -34,7 +35,6 @@ static void finish_with_error(MYSQL *con)
 
 static int ldb_new(lua_State *L)
 {
-    MYSQL *con;
     MYSQL_RES *res;
     ldb_userdata_t *su;
     int i;
@@ -57,23 +57,24 @@ static int ldb_new(lua_State *L)
     su->user = strdup(user);
     su->password = strdup(password);
     su->database = strdup(database);
-    con = mysql_init(NULL);
+    mysql_init(&su->mysql);
     /* Connect to database */
-    if (!mysql_real_connect(con, su->host,
-                su->user, su->password, su->database, 0, NULL, 0)) {
-        luaL_error(L, "%s", mysql_error(con));
+    su->con = mysql_real_connect(&su->mysql, su->host,
+                su->user, su->password, su->database, 0, NULL, 0);
+    if (!su->con) {
+        luaL_error(L, "%s", mysql_error(su->con));
     }
     su->closed = 0;
     /* Add the metatable to the stack. */
     luaL_getmetatable(L, "Ldb");
     /* Set the metatable on the userdata. */
     lua_setmetatable(L, -2);
-    if (mysql_query(con, query)) 
+    if (mysql_query(su->con, query)) 
     {
-        finish_with_error(con);
+        finish_with_error(su->con);
     }
 
-    res = mysql_store_result(con);
+    res = mysql_store_result(su->con);
     int num_fields = mysql_num_fields(res);
 
     MYSQL_ROW row;
@@ -86,28 +87,15 @@ static int ldb_new(lua_State *L)
         } 
     }
     mysql_free_result(res);
-    if (con != NULL && !(su->closed)) {
+    if (su->con != NULL && !(su->closed)) {
+        mysql_close(su->con);
         su->closed = 1;
-        mysql_close(con);
     }
     return 1;
 }
 
-static int ldb_destroy(lua_State *L)
-{
-    MYSQL *con;
-    ldb_userdata_t *su;
-    su = (ldb_userdata_t *)lua_newuserdata(L, sizeof(*su));
-    if (con != NULL && !(su->closed)) {
-        su->closed = 1;
-        mysql_close(con);
-    }
-    return 0;
-}
-
 static int ldb_push_results(lua_State *L)
 {
-    MYSQL *con;
     ldb_userdata_t *su;
     int ch;
     const char *data_str;
@@ -123,42 +111,47 @@ static int ldb_push_results(lua_State *L)
             "where D.ID_Sample=P.ID_Sample and P.IPAddress ='%s'"
             " and D.DriverNo=%d", data_str, data_str, su->ip_addr, ch);
 
-    /* Connect to database */
-    con = mysql_init(NULL);
-    if (!mysql_real_connect(con, su->host,
-                su->user, su->password, su->database, 0, NULL, 0)) {
-        luaL_error(L, "%s", mysql_error(con));
-    }
-    su->closed = 0;
     /* send query */
-    if (mysql_query(con, query)) 
+    if (mysql_query(su->con, query)) 
     {
-        luaL_error(L, "%s", mysql_error(con));
+        luaL_error(L, "%s", mysql_error(su->con));
     }
-    if (con != NULL && !(su->closed)) {
-        su->closed = 1;
-        mysql_close(con);
-    }
+
     return 0;
 }
 
 static int ldb_pull_calibration(lua_State *L)
 {
-    MYSQL *con;
+    ldb_userdata_t *su;
+    su = (ldb_userdata_t *)luaL_checkudata(L, 1, "Ldb");
+    return 0;
+}
+
+static int ldb_close(lua_State *L)
+{
+    ldb_userdata_t *su;
+    su = (ldb_userdata_t *)luaL_checkudata(L, 1, "Ldb");
+    /* close connection to database */
+    if (su->con != NULL && !(su->closed)) {
+        mysql_close(su->con);
+        su->closed = 1;
+    }
+
+    return 0;
+}
+
+static int ldb_open(lua_State *L)
+{
     ldb_userdata_t *su;
     su = (ldb_userdata_t *)luaL_checkudata(L, 1, "Ldb");
     /* Connect to database */
-    con = mysql_init(NULL);
-    if (!mysql_real_connect(con, su->host,
-                su->user, su->password, su->database, 0, NULL, 0)) {
-        luaL_error(L, "%s", mysql_error(con));
+    su->con = mysql_real_connect(&su->mysql, su->host,
+                su->user, su->password, su->database, 0, NULL, 0);
+    if (!su->con) {
+        luaL_error(L, "%s", mysql_error(su->con));
     }
     su->closed = 0;
 
-    if (con != NULL && !(su->closed)) {
-        su->closed = 1;
-        mysql_close(con);
-    }
     return 0;
 }
 
@@ -172,10 +165,12 @@ static int ldb_get_own_ip(lua_State *L)
 }
 
 static const luaL_Reg ldb_methods[] = {
+    {"open", ldb_open},
+    {"close", ldb_close},
     {"push_results", ldb_push_results},
     {"pull_calibration", ldb_pull_calibration},
     {"get_ip", ldb_get_own_ip},
-    {"__gc", ldb_destroy},
+    {"__gc", ldb_close},
     {NULL, NULL}
 };
 
