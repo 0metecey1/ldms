@@ -1,11 +1,12 @@
--- LDMS initialization file
+-- LDMS teardown file
 -- put in /usr/share/ldms
 
-function append_to_db(driver, str)
-    nltsdb:push_results(driver, str)
-end
-
--- Turn on right led with white, full intensity
-led:turn_on(1)
-led:turn_on(2)
-led:turn_on(3)
+-- Turn off all leds
+led:turn_off(1)
+led:turn_off(2)
+led:turn_off(3)
+led:turn_off(4)
+led:turn_off(5)
+led:turn_off(6)
+-- Turn on left led with red, full intensity
+led:turn_on(6)
