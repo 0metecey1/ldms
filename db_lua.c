@@ -106,10 +106,12 @@ static int ldb_push_results(lua_State *L)
     data_str  = luaL_checkstring(L, 3);
     if (data_str == NULL) 
         luaL_error(L, "data cannot be empty");
-    snprintf(query, MAX_ROW_SIZE, "update tblData as D, tblPorts as P set D.LTData=if(D.LTData is NULL, "
+    snprintf(query, MAX_ROW_SIZE, 
+            "update tblData as D, tblPorts as P set D.LTData=if(D.LTData is NULL, "
             "'%s', concat(D.LTData,'%s')) "
             "where D.ID_Sample=P.ID_Sample and P.IPAddress ='%s'"
-            " and D.DriverNo=%d", data_str, data_str, su->ip_addr, ch);
+            " and D.DriverNo=%d", 
+            data_str, data_str, su->ip_addr, ch);
 
     /* send query */
     if (mysql_query(su->con, query)) 
