@@ -2,10 +2,10 @@
  * Naive test application.
  */
 
+#include "config.h"
 #include <czmq.h>
 #include <getopt.h>
 #include "tracks.h"
-#include "config.h"
 
 typedef struct {
     bool verbose;

@@ -1,4 +1,5 @@
 #define LUA_LIB
+#include "config.h"
 #include <stdlib.h>
 #include <lua.h>
 #include <lauxlib.h>
