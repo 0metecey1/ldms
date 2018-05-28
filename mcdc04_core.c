@@ -20,7 +20,7 @@
 #include <linux/types.h>
 #include <time.h>
 #include <errno.h>
-#include <linux/i2c-dev.h>
+#include <linux/i2c-dev-user.h>
 #include "mcdc04.h"
 #include "i2cbusses.h"
 
