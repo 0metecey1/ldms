@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 #AC_PREREQ(2.60)
-AC_INIT([ldms], [2.1.0], [torsten.coym@novaled.com])
+AC_INIT([ldms], [2.2.0], [torsten.coym@novaled.com])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_SRCDIR([ldms.c])
 AC_CONFIG_HEADER([config.h])
