@@ -12,8 +12,8 @@ static const char *progname = "lua";
  ** (if present)
  */
 static void l_message (const char *pname, const char *msg) {
-    if (pname) luai_writestringerror("%s: ", pname);
-    luai_writestringerror("%s\n", msg);
+    if (pname) lua_writestringerror("%s: ", pname);
+    lua_writestringerror("%s\n", msg);
     fflush(stderr);
 }
 
