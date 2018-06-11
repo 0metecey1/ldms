@@ -1,43 +1,40 @@
-#                                               -*- Autoconf -*-
-# Process this file with autoconf to produce a configure script.
+# Initialize autoconf.
+AC_INIT([ldms], [3.0], [bug-automake@gnu.org])
 
-#AC_PREREQ(2.60)
-AC_INIT([ldms], [2.2.0], [torsten.coym@novaled.com])
-AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_SRCDIR([ldms.c])
-AC_CONFIG_HEADER([config.h])
-AM_INIT_AUTOMAKE
+AC_PREREQ([2.68]) # Force autoconf to be at least this version number
+AC_CONFIG_AUX_DIR([build-aux]) # Put autotools junk in 'build-aux' subdir
+AC_CONFIG_MACRO_DIR([m4]) # Automatically load scripts from 'm4' subdir
 
-# Require GNU toolchain
-AC_GNU_SOURCE
+AC_CONFIG_SRCDIR([lib/counter.c]) # Safety check - list a source file that wouldn't be in other directories
+AC_CONFIG_HEADERS([src/config.h]) # Put configuration results here, (should be `#include`d)
 
-# Checks for programs.
+# Enable "automake"
+AM_INIT_AUTOMAKE([subdir-objects foreign -Wall])
+AC_CONFIG_FILES([Makefile])
+
+# Enable libtool
+m4_ifdef([AM_PROG_AR], [AM_PROG_AR]) # see https://lists.gnu.org/archive/html/automake/2012-05/msg00014.html
+AC_DISABLE_STATIC # change static libraries to not build by default
+LT_INIT
+
+# Check for header files
+AC_CHECK_HEADER([linux/i2c-dev-user.h])
+
+# Check for programs
 AC_PROG_CC
-AC_PROG_INSTALL
-AC_PROG_MAKE_SET
+AX_PROG_LUA([5.3], [5.4])
 
-# Checks for header files.
+# Check for libraries
+AX_LUA_LIBS
 
-# Checks for typedefs, structures, and compiler characteristics.
+# Check for header files
+AX_LUA_HEADERS
 
-AM_PROG_LIBTOOL
+# Check for typedefs, structures, and compiler characteristics
 
-# Set shared libraries
-AC_DISABLE_STATIC
-AC_ENABLE_SHARED
-
-# Checks for library functions.
-PKG_CHECK_MODULES([JANSSON], [jansson >= 2])
+# Check for library functions
+# PKG_CHECK_MODULES([JANSSON], [jansson >= 2])
 PKG_CHECK_MODULES([ZMQ], [libzmq >= 4.1])
 PKG_CHECK_MODULES([CZMQ], [libczmq >= 4.1])
-PKG_CHECK_MODULES([LUA], [lua >= 5.3])
 
-# AC_SUBST([LUA_CFLAGS])
-# AC_SUBST([LUA_LIBS])
-
-WITH_MYSQL()
-MYSQL_USE_CLIENT_API()
-MYSQL_SUBST()
-
-AC_CONFIG_FILES([Makefile])
-AC_OUTPUT
+AC_OUTPUT # Do final output

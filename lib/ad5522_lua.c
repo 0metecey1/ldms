@@ -1,4 +1,5 @@
 #define LUA_LIB
+#define _GNU_SOURCE  // stdio.h to include asprintf
 #include "config.h"
 #include <stdlib.h>
 #include <lua.h>

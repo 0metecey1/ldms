@@ -5,7 +5,6 @@
 #include "config.h"
 #include <czmq.h>
 #include <getopt.h>
-#include "tracks.h"
 
 typedef struct {
     bool verbose;
@@ -17,6 +16,7 @@ typedef struct {
 } ldms_config_t;
 
 static int port = 3306;
+static bool verbose = false;
 static const char *host = "192.168.16.15";
 static const char *user = "root";
 static const char *password = "V0st!novaled#";
@@ -70,7 +70,7 @@ static void parse_opts(int argc, char *argv[])
 
 		switch (c) {
 		case 'v':
-            ldms_config->verbose = true;
+            verbose = true;
 			break;
 		case 'p':
             port = atoi(optarg);
@@ -90,73 +90,34 @@ static void parse_opts(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-    ldms_config = (ldms_config_t *) malloc(sizeof (ldms_config_t));
     parse_opts(argc, argv);
     /* Daemon-specific initialization goes here */
+    zsys_init ();
     zsys_set_logsystem (true);
     /* Ctrl-C and SIGTERM will set zsys_interrupted. */
-    zsys_catch_interrupts();
+    zsys_catch_interrupts ();
     /* Show version string */
-    zsys_info("This is %s\n", PACKAGE_STRING);
-    // Create state-based script engine
-    zactor_t *atracks = zactor_new (tracks, NULL);
-    assert (atracks);
-    if (ldms_config->verbose)
-        zstr_sendx (atracks, "VERBOSE", NULL);
-    zsock_send (atracks, "si", "CONFIGURE", 5560);
-    char *hostname = zstr_recv (atracks);
-    assert (*hostname);
-    free (hostname);
-
+    zsys_info ("This is %s\n", PACKAGE_STRING);
+    
     //  Create speaker beacon to broadcast our service
     zactor_t *speaker = zactor_new (zbeacon, NULL);
     assert (speaker);
-    zsock_send (speaker, "si", "CONFIGURE", 9999);
-    hostname = zstr_recv (speaker);
-    if (!*hostname) {
-        exit(EXIT_FAILURE);
-    }
-    free (hostname);
+    zsys_info ("Beacon service initialized");
+    // zsock_send (speaker, "si", "CONFIGURE", 9999);
+    // char *hostname = zstr_recv (speaker);
+    // if (!*hostname) {
+    //     exit(EXIT_FAILURE);
+    // }
+    // free (hostname);
     //  We will broadcast the magic value 'VP'+mac address string
     //  "VP AA:BB:CC:DD:EE:FF"
     byte announcement [21] = {'V', 'P', ' ' };
-    strcat((char *)announcement, get_mac_addr());
+    // strcat((char *)announcement, get_mac_addr());
     // Publish announcement every 5000ms
-    zsock_send (speaker, "sbi", "PUBLISH", announcement, 20, 5000);
+    // zsock_send (speaker, "sbi", "PUBLISH", announcement, 20, 5000);
     
-    //  Create speaker beacon to broadcast our service
-    zactor_t *notifier = zactor_new (zbeacon, NULL);
-    assert (notifier);
-    zsock_send (notifier, "si", "CONFIGURE", 5555);
-    hostname = zstr_recv (notifier);
-    if (!*hostname) {
-        exit(EXIT_FAILURE);
-    }
-    free (hostname);
-    //  We will broadcast the magic value 'VP'+mac address string
-    //  "VP AA:BB:CC:DD:EE:FF"
-    byte notice[6] = "EVENT";
-    
-    bool event_occured = false;
-    // Main loop
-    while(!zsys_interrupted) {
-        if (event_occured)
-            // Publish notice every 1000ms
-            zsock_send (notifier, "sbi", "PUBLISH", notice, 5, 1000);
-        else
-            zstr_sendx (notifier, "SILENCE", NULL);
-    }
-
     /* Tear down the beacon */
-    zstr_sendx (speaker, "SILENCE", NULL);
+    // zstr_sendx (speaker, "SILENCE", NULL);
     zactor_destroy (&speaker);
-    /* Tear down the notifier */
-    zstr_sendx (notifier, "SILENCE", NULL);
-    zactor_destroy (&notifier);
-    /* Tear down the state-based script engine */
-    zactor_destroy (&atracks);
-    //  @end
-
-    free(ldms_config);
     exit(EXIT_SUCCESS);
 }
