@@ -6,6 +6,9 @@
 #include <czmq.h>
 #include <getopt.h>
 
+#define PUBLISH_PERIOD_MSEC 5000
+#define BEACON_PUBLISH_PORT 9999 
+
 typedef struct {
     bool verbose;
     int port;
@@ -90,7 +93,7 @@ static void parse_opts(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-    parse_opts(argc, argv);
+    parse_opts (argc, argv);
     /* Daemon-specific initialization goes here */
     zsys_init ();
     zsys_set_logsystem (true);
@@ -103,21 +106,30 @@ int main(int argc, char *argv[])
     zactor_t *speaker = zactor_new (zbeacon, NULL);
     assert (speaker);
     zsys_info ("Beacon service initialized");
-    // zsock_send (speaker, "si", "CONFIGURE", 9999);
-    // char *hostname = zstr_recv (speaker);
-    // if (!*hostname) {
-    //     exit(EXIT_FAILURE);
-    // }
-    // free (hostname);
+
+    zsock_send (speaker, "si", "CONFIGURE", BEACON_PUBLISH_PORT);
+    char *hostname = zstr_recv (speaker);
+    if (!*hostname) {
+        exit(EXIT_FAILURE);
+    }
+    free (hostname);
+    zsys_info ("Beacon service configured");
     //  We will broadcast the magic value 'VP'+mac address string
     //  "VP AA:BB:CC:DD:EE:FF"
     byte announcement [21] = {'V', 'P', ' ' };
-    // strcat((char *)announcement, get_mac_addr());
+    strcat ((char *)announcement, get_mac_addr ());
     // Publish announcement every 5000ms
-    // zsock_send (speaker, "sbi", "PUBLISH", announcement, 20, 5000);
-    
+    zsock_send (speaker, "sbi", "PUBLISH", announcement, 20, PUBLISH_PERIOD_MSEC);
+    zsys_info ("Publish [[%s]] every %d ms", announcement, PUBLISH_PERIOD_MSEC);
+
+    /* Main loop */
+    while (!zsys_interrupted) {
+        zclock_sleep (10u); /* release to let the OS do something else */
+    }
+
     /* Tear down the beacon */
-    // zstr_sendx (speaker, "SILENCE", NULL);
+    zstr_sendx (speaker, "SILENCE", NULL);
+    zsys_info ("Tear down beacon service");
     zactor_destroy (&speaker);
-    exit(EXIT_SUCCESS);
+    exit (EXIT_SUCCESS);
 }
