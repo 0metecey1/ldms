@@ -1,4 +1,3 @@
-
 #ifndef _MCDC04_H_
 #define _MCDC04_H_
 #include <lua.h>
