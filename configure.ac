@@ -1,5 +1,5 @@
 # Initialize autoconf.
-AC_INIT([ldms], [3.0], [bug-automake@gnu.org])
+AC_INIT([ldms], [2.4.0], [bug-automake@gnu.org])
 
 AC_PREREQ([2.68]) # Force autoconf to be at least this version number
 AC_CONFIG_AUX_DIR([build-aux]) # Put autotools junk in 'build-aux' subdir
