@@ -28,7 +28,7 @@ AX_PROG_LUA([5.3], [5.4])
 AX_LUA_LIBS
 
 # Check for header files
-AX_LUA_HEADERS
+# AX_LUA_HEADERS
 
 # Check for typedefs, structures, and compiler characteristics
 
