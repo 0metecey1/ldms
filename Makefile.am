@@ -5,17 +5,19 @@ ACLOCAL_AMFLAGS = -I m4 --install
 AM_LDFLAGS = -export-symbols-regex '^luaopen_' -module -avoid-version
 
 # binaries to create
-bin_PROGRAMS = ldms
+bin_PROGRAMS = ldms 
+check_PROGRAMS = test_se97
 
 # per-binary settings
-# ldms_SOURCES = src/main.c
 ldms_SOURCES = src/ldms.c
 ldms_CFLAGS = $(LUA_INCLUDE) ${CZMQ_CFLAGS} ${ZMQ_CFLAGS}
 ldms_LDFLAGS = $(LUA_LIB) ${CZMQ_LIBS} ${ZMQ_LIBS}
 
+test_se97_SOURCES = lib/se97_core.c lib/i2cbusses.c test/test_se97.c ../Unity/src/unity.c
+test_se97_CFLAGS = -I../Unity/src -I./lib
+
 # Shared objects to create
 luaexec_LTLIBRARIES = lcounter.la mcdc04.la ad5522.la tlc5948a.la 
-# luaexec_LTLIBRARIES += pca9632.la tmp116.la se97.la
 luaexec_LTLIBRARIES += pca9536.la pca9632.la tmp116.la se97.la  
 
 # per-shared object settings
@@ -36,3 +38,5 @@ tmp116_la_SOURCES = lib/tmp116_core.c lib/tmp116_lua.c lib/tmp116.h
 tmp116_la_CFLAGS = @LUA_INCLUDE@
 se97_la_SOURCES = lib/se97_core.c lib/se97_lua.c lib/se97.h
 se97_la_CFLAGS = @LUA_INCLUDE@
+
+TESTS = $(check_PROGRAMS)

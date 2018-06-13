@@ -5,7 +5,7 @@ AC_PREREQ([2.68]) # Force autoconf to be at least this version number
 AC_CONFIG_AUX_DIR([build-aux]) # Put autotools junk in 'build-aux' subdir
 AC_CONFIG_MACRO_DIR([m4]) # Automatically load scripts from 'm4' subdir
 
-AC_CONFIG_SRCDIR([lib/counter.c]) # Safety check - list a source file that wouldn't be in other directories
+AC_CONFIG_SRCDIR([lib/mcdc04_core.c]) # Safety check - list a source file that wouldn't be in other directories
 AC_CONFIG_HEADERS([src/config.h]) # Put configuration results here, (should be `#include`d)
 
 # Enable "automake"
