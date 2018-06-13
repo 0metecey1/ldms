@@ -25,29 +25,10 @@ static int lpca9632_new(lua_State *L)
 	unsigned char polarity_inverted=0, output_mode_pushpull=0;
 
     i2cbus = luaL_checkinteger(L, 1);
-    if (i2cbus < 0)
-	{
-        luaL_error(L, "i2cbus cannot be a negative number");
-		return 0;
-	}
     address = luaL_checkinteger(L, 2);
-    if ((address < 0x08) || (address > 0x77))
-	{
-        luaL_error(L, "No valid i2c 7-bit address");
-		return 0;
-	}
 	polarity_inverted = luaL_checkinteger(L, 3);
-    if ((polarity_inverted < 0) || (polarity_inverted > 1))
-	{
-        luaL_error(L, "No valid polarity_inverted given, allowed: 0..1");
-		return 0;
-	}
 	output_mode_pushpull = luaL_checkinteger(L, 4);
-    if ((output_mode_pushpull < 0) || (output_mode_pushpull > 1))
-	{
-        luaL_error(L, "No valid output_mode_pushpull value, allowed: 0..1");
-		return 0;
-	}
+
     /* Create the user data pushing it onto the stack. We also pre-initialize
      * the member of the userdata in case initialization fails in some way. If
      * that happens we want the userdata to be in a consistent state for __gc. */
@@ -59,6 +40,26 @@ static int lpca9632_new(lua_State *L)
     /* Set the metatable on the userdata. */
     lua_setmetatable(L, -2);
 
+    if (i2cbus < 0)
+	{
+        luaL_error(L, "i2cbus cannot be a negative number");
+		return 1;
+	}
+    if ((address < 0x08) || (address > 0x77))
+	{
+        luaL_error(L, "No valid i2c 7-bit address");
+		return 1;
+	}
+    if ((polarity_inverted < 0) || (polarity_inverted > 1))
+	{
+        luaL_error(L, "No valid polarity_inverted given, allowed: 0..1");
+		return 1;
+	}
+    if ((output_mode_pushpull < 0) || (output_mode_pushpull > 1))
+	{
+        luaL_error(L, "No valid output_mode_pushpull value, allowed: 0..1");
+		return 1;
+	}
     /* Create the data that comprises the userdata (the pca9632 state). */
     su->s    = pca9632_create(i2cbus, address, polarity_inverted, output_mode_pushpull);
 
@@ -101,7 +102,7 @@ static int lpca9632_set_channel_output(lua_State *L)
 		return 0;
 	}
 	pca9632_set_channel_output(su->s,channel,output);
-    return 1;
+    return 0;
 }
 
 
@@ -112,20 +113,23 @@ static int lpca9632_set_channel_mode(lua_State *L)
     lpca9632_userdata_t *su;
 	
     su = (lpca9632_userdata_t *)luaL_checkudata(L, 1, "Lpca9632");
+
 	unsigned int channel = luaL_checkinteger(L, 2);
     if ((channel < 0) || (channel > 3))
 	{
         luaL_error(L, "No valid channel value, allowed: 0..3");
 		return 0;
 	}
+
 	unsigned int mode = luaL_checkinteger(L, 3);
     if ((mode < 0) || (mode > 2))
 	{
         luaL_error(L, "No valid mode value, allowed: 0..2");
 		return 0;
 	}
+
 	pca9632_set_channel_mode(su->s,channel,mode);
-    return 1;
+    return 0;
 }
 
 static int lpca9632_all_off(lua_State *L)
@@ -135,7 +139,7 @@ static int lpca9632_all_off(lua_State *L)
 	
     su = (lpca9632_userdata_t *)luaL_checkudata(L, 1, "Lpca9632");
 	pca9632_switch_off_all_channels(su->s);
-    return 1;
+    return 0;
 }
 
 static const luaL_Reg lpca9632_methods[] = {

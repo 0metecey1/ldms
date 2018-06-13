@@ -20,12 +20,7 @@ static int ltmp116_new(lua_State *L)
     int i2cbus, address;
 
     i2cbus = luaL_checkinteger(L, 1);
-    if (i2cbus < 0)
-        luaL_error(L, "i2cbus cannot be a negative number");
-
     address = luaL_checkinteger(L, 2);
-    if ((address < 0x08) || (address > 0x77))
-        luaL_error(L, "No valid i2c 7-bit address");
 
     /* Create the user data pushing it onto the stack. We also pre-initialize
      * the member of the userdata in case initialization fails in some way. If
@@ -37,6 +32,18 @@ static int ltmp116_new(lua_State *L)
     luaL_getmetatable(L, "Ltmp116");
     /* Set the metatable on the userdata. */
     lua_setmetatable(L, -2);
+
+    if (i2cbus < 0)
+    {
+        luaL_error(L, "i2cbus cannot be a negative number");
+        return 1;
+    }
+
+    if ((address < 0x08) || (address > 0x77))
+    {
+        luaL_error(L, "No valid i2c 7-bit address");
+        return 1;
+    }
 
     /* Create the data that comprises the userdata (the tmp116 state). */
     su->s    = tmp116_create(i2cbus, address);

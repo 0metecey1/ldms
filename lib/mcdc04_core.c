@@ -365,6 +365,7 @@ void mcdc04_trigger(mcdc04_t *self)
 
 void mcdc04_read_raw(mcdc04_t *self, unsigned int ch, unsigned int *val)
 {
+    *val = 0;
     switch(ch) {
         case 1: *val = self->last_val.ciex; break;
         case 3: *val = self->last_val.ciey; break;

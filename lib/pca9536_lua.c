@@ -21,29 +21,10 @@ static int lpca9536_new(lua_State *L)
 	unsigned char direction=255, output=255;
 
     i2cbus = luaL_checkinteger(L, 1);
-    if (i2cbus < 0)
-	{
-        luaL_error(L, "i2cbus cannot be a negative number");
-		return 0;
-	}
     address = luaL_checkinteger(L, 2);
-    if ((address < 0x08) || (address > 0x77))
-	{
-        luaL_error(L, "No valid i2c 7-bit address");
-		return 0;
-	}
 	direction = luaL_checkinteger(L, 3);
-    if ((direction < 0) || (direction > 0xFF))
-	{
-        luaL_error(L, "No valid direction configuration, allowed: 0..255");
-		return 0;
-	}
 	output = luaL_checkinteger(L, 4);
-    if ((output < 0) || (output > 0xFF))
-	{
-        luaL_error(L, "No valid output value, allowed: 0..255");
-		return 0;
-	}
+
     /* Create the user data pushing it onto the stack. We also pre-initialize
      * the member of the userdata in case initialization fails in some way. If
      * that happens we want the userdata to be in a consistent state for __gc. */
@@ -55,6 +36,26 @@ static int lpca9536_new(lua_State *L)
     /* Set the metatable on the userdata. */
     lua_setmetatable(L, -2);
 
+    if (i2cbus < 0)
+	{
+        luaL_error(L, "i2cbus cannot be a negative number");
+		return 1;
+	}
+    if ((address < 0x08) || (address > 0x77))
+	{
+        luaL_error(L, "No valid i2c 7-bit address");
+		return 1;
+	}
+    if ((direction < 0) || (direction > 0xFF))
+	{
+        luaL_error(L, "No valid direction configuration, allowed: 0..255");
+		return 1;
+	}
+    if ((output < 0) || (output > 0xFF))
+	{
+        luaL_error(L, "No valid output value, allowed: 0..255");
+		return 1;
+	}
     /* Create the data that comprises the userdata (the pca9536 state). */
     su->s    = pca9536_create(i2cbus, address, direction, output);
 
@@ -74,10 +75,6 @@ static int lpca9536_destroy(lua_State *L)
     return 0;
 }
 
-
-
-
-
 static int lpca9536_output(lua_State *L)
 {
     int ret, ptr = 0;
@@ -90,8 +87,9 @@ static int lpca9536_output(lua_State *L)
         luaL_error(L, "No valid output value, allowed: 0..255");
 		return 0;
 	}
+
 	pca9536_output(su->s,output);
-    return 1;
+    return 0;
 }
 
 static int lpca9536_input(lua_State *L)
