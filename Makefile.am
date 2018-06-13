@@ -20,7 +20,7 @@ test_se97_CFLAGS = -I../Unity/src -I./lib
 
 # Shared objects to create
 luaexec_LTLIBRARIES = lcounter.la mcdc04.la ad5522.la tlc5948a.la 
-luaexec_LTLIBRARIES += pca9536.la pca9632.la tmp116.la se97.la  
+luaexec_LTLIBRARIES += pca9536.la pca9632.la tmp116.la se97.la id.la dib.la 
 
 # per-shared object settings
 lcounter_la_SOURCES = lib/counter.c lib/counter.h lib/wrap.c
@@ -44,5 +44,9 @@ tmp116_la_CFLAGS = $(LUA_INCLUDE)
 se97_la_SOURCES = lib/i2cbusses.c lib/i2cbusses.h 
 se97_la_SOURCES += lib/se97_core.c lib/se97_lua.c lib/se97.h
 se97_la_CFLAGS = $(LUA_INCLUDE)
+id_la_SOURCES = lib/id_lua.c
+id_la_CFLAGS = $(LUA_INCLUDE)
+dib_la_SOURCES = lib/dib_lua.c
+dib_la_CFLAGS = $(LUA_INCLUDE)
 
 TESTS = $(check_PROGRAMS)
