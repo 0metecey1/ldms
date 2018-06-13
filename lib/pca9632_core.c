@@ -101,15 +101,18 @@ pca9632_t *pca9632_create(int i2cbus, int address,
         return NULL;
     self->dev_i2cbus = i2cbus;
     self->dev_address = address;
-    self->dev_file = open_i2c_dev(self->dev_i2cbus, self->dev_filename, sizeof(self->dev_filename), 0);
+    self->dev_file = open_i2c_dev(self->dev_i2cbus, 
+            self->dev_filename, sizeof(self->dev_filename), 0);
     if ((self->dev_file < 0) || set_slave_addr(self->dev_file, self->dev_address, force)) {
         fprintf(stderr, "Error: opening i2c device failed\n");
         free(self);
         return NULL;
     }
-    uint8_t outmode=(PCA9632_GROUPCTRL_DIMMING|PCA9632_OUTPUT_ON_STOP|PCA9632_OUTNE);
-    if (polarity_inverted!=0) outmode |= PCA9632_OUTPUT_INVERT; else outmode |= PCA9632_OUTPUT_NORMAL;
-    if (output_mode_pushpull!=0) outmode |= PCA9632_OUTPUT_PUSHPULL; else  outmode |= PCA9632_OUTPUT_OPENDRAIN;
+    uint8_t outmode = (PCA9632_GROUPCTRL_DIMMING \ 
+            | PCA9632_OUTPUT_ON_STOP \
+            | PCA9632_OUTNE);
+    outmode |= (polarity_inverted != 0) ? PCA9632_OUTPUT_INVERT : PCA9632_OUTPUT_NORMAL;
+    outmode |= (output_mode_pushpull != 0) ? PCA9632_OUTPUT_PUSHPULL : PCA9632_OUTPUT_OPENDRAIN;
 
     ret = i2c_smbus_write_byte_data(self->dev_file, 
             (uint8_t) PCA9632_MODE1_REG, 

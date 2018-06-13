@@ -10,13 +10,9 @@
 #include <time.h>
 #include "tmp116.h"
 
-
-
 typedef struct {
     tmp116_t *s;
 } ltmp116_userdata_t;
-
-
 
 static int ltmp116_new(lua_State *L)
 {
@@ -60,10 +56,6 @@ static int ltmp116_destroy(lua_State *L)
 
     return 0;
 }
-
-
-
-
 
 #define BOARD_ID_SIZE 8
 static int ltmp116_get_board_id(lua_State *L)

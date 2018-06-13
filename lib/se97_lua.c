@@ -10,13 +10,9 @@
 #include <time.h>
 #include "se97.h"
 
-
-
 typedef struct {
     se97_t *s;
 } lse97_userdata_t;
-
-
 
 static int lse97_new(lua_State *L)
 {
@@ -60,10 +56,6 @@ static int lse97_destroy(lua_State *L)
 
     return 0;
 }
-
-
-
-
 
 #define BOARD_ID_SIZE 8
 static int lse97_get_board_id(lua_State *L)

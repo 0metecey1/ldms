@@ -10,13 +10,9 @@
 #include <time.h>
 #include "pca9536.h"
 
-
-
 typedef struct {
     pca9536_t *s;
 } lpca9536_userdata_t;
-
-
 
 static int lpca9536_new(lua_State *L)
 {

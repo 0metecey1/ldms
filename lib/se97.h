@@ -1,4 +1,3 @@
-
 #ifndef _SE97_H_
 #define _SE97_H_
 #include <stdint.h>
