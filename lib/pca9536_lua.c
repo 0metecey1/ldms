@@ -96,10 +96,10 @@ static int lpca9536_input(lua_State *L)
 {
     char temp_str[20] = {' '};
     lpca9536_userdata_t *su;
-	unsigned char input_value;
+	unsigned int input_value;
     su = (lpca9536_userdata_t *)luaL_checkudata(L, 1, "Lpca9536");
 
-	if (pca9536_input(su->s, &input_value)>=0) {
+	if (pca9536_input(su->s, &input_value) >= 0) {
 		lua_pushnumber(L, input_value);
 	} else {
 		lua_pushnumber(L, -1);

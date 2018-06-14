@@ -108,7 +108,8 @@ pca9632_t *pca9632_create(int i2cbus, int address,
         free(self);
         return NULL;
     }
-    uint8_t outmode = (PCA9632_GROUPCTRL_DIMMING \ 
+
+    uint8_t outmode = (PCA9632_GROUPCTRL_DIMMING \
             | PCA9632_OUTPUT_ON_STOP \
             | PCA9632_OUTNE);
     outmode |= (polarity_inverted != 0) ? PCA9632_OUTPUT_INVERT : PCA9632_OUTPUT_NORMAL;

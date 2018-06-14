@@ -15,8 +15,8 @@ ldms_SOURCES = src/ldms.c
 ldms_CFLAGS = $(LUA_INCLUDE) ${CZMQ_CFLAGS} ${ZMQ_CFLAGS}
 ldms_LDFLAGS = $(LUA_LIB) ${CZMQ_LIBS} ${ZMQ_LIBS}
 
-test_se97_SOURCES = lib/se97_core.c lib/i2cbusses.c test/test_se97.c ../Unity/src/unity.c
-test_se97_CFLAGS = -I../Unity/src -I./lib
+test_se97_SOURCES = lib/se97_core.c lib/i2cbusses.c test/test_se97.c ./Unity/src/unity.c
+test_se97_CFLAGS = -I./Unity/src -I./lib
 
 # Shared objects to create
 luaexec_LTLIBRARIES = lcounter.la mcdc04.la ad5522.la tlc5948a.la 
