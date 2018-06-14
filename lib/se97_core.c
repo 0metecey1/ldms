@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 //#include <string.h>
-//#include <assert.h>
+#include <assert.h>
 //#include <getopt.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -25,6 +25,8 @@
 #include "se97.h"
 #include "i2cbusses.h"
 
+/* interval for updating the device in msec */
+#define SE97_HZ_MS 10
 
 #define SE97B_CONFIG_MODE_SHUTDOWN		0x0100
 #define SE97B_CONFIG_MODE_NORMAL		0x0000
@@ -32,6 +34,16 @@
 #define SE97B_TEMPERATURE_REG			0x05
 #define EEPROM_ID_START		0x080
 #define EEPROM_ID_LENGTH	0x008
+
+/* JC42 registers. All registers are 16 bit. */
+#define JC42_REG_CAP		0x00
+#define JC42_REG_CONFIG		0x01
+#define JC42_REG_TEMP_UPPER	0x02
+#define JC42_REG_TEMP_LOWER	0x03
+#define JC42_REG_TEMP_CRITICAL	0x04
+#define JC42_REG_TEMP		0x05
+#define JC42_REG_MANID		0x06
+#define JC42_REG_DEVICEID	0x07
 
 /*
  * swap - swap value of @a and @b
@@ -99,6 +111,39 @@
  */
 #define clamp_val(val, lo, hi) clamp_t(typeof(val), val, lo, hi)
 
+enum temp_index {
+	t_input = 0,
+	t_crit,
+	t_min,
+	t_max,
+	t_num_temp
+};
+
+static const uint8_t temp_regs[t_num_temp] = {
+	[t_input] = JC42_REG_TEMP,
+	[t_crit] = JC42_REG_TEMP_CRITICAL,
+	[t_min] = JC42_REG_TEMP_LOWER,
+	[t_max] = JC42_REG_TEMP_UPPER,
+};
+
+struct _se97_t {
+    int dev_i2cbus;
+    int dev_temp_address;
+    int dev_temp_file;
+    char dev_temp_filename[128];
+    int dev_eeprom_address;
+    int dev_eeprom_file;
+    char dev_eeprom_filename[128];
+    float last_temperature; /* REMOVE! */
+    uint8_t eeprom_data[8];
+    bool extended;	/* true if extended range supported */
+    bool data_valid;
+    struct timespec last_updated;	/* In in seconds/nanoseconds */
+    uint16_t orig_config;	/* original configuration */
+    uint16_t config;		/* current configuration */
+    uint16_t temp[t_num_temp];/* Temperatures */
+};
+
 se97_t *se97_create(int i2cbus, int address)
 {
     se97_t *self = (se97_t *) calloc(1, (sizeof (se97_t)));
@@ -154,47 +199,30 @@ void se97_destroy(se97_t **self_p)
 /*
  * Write eeprom data to se97
  */
-int se97_write_eeprom(se97_t *self)
+int se97_write_eeprom(se97_t *self, const char *buf)
 {
     int32_t ret;
     ret = i2c_smbus_write_i2c_block_data(self->dev_eeprom_file, 
-            EEPROM_ID_START, EEPROM_ID_LENGTH, self->eeprom_data);
+            EEPROM_ID_START, EEPROM_ID_LENGTH, buf);
     if (ret < 0) {
         fprintf(stderr, "Error: Writing EEPROM from SE97B on I2C %d ADR 0x%x failed\n", 
                 self->dev_i2cbus,self->dev_eeprom_address);
-        return -1;
+        return ret;
     }
+    return 0;
 }
 
 /*
  * Read eeprom data from se97
  */
-int se97_read_eeprom(se97_t *self)
+int se97_read_eeprom(se97_t *self, char *buf)
 {
     int32_t ret;
-    if ((ret=i2c_smbus_read_i2c_block_data(self->dev_eeprom_file, 
-                    EEPROM_ID_START, EEPROM_ID_LENGTH, self->eeprom_data))<0) {
+    if ((ret = i2c_smbus_read_i2c_block_data(self->dev_eeprom_file, 
+                    EEPROM_ID_START, EEPROM_ID_LENGTH, buf)) < 0) {
         fprintf(stderr, "Error: Reading EEPROM from SE97B on I2C %d ADR 0x%x failed\n", 
                 self->dev_i2cbus,self->dev_eeprom_address);
-        return -1;
-    }
-    return 0;
-}
-
-
-/*
- * Returns the temperature as 16 bit value.
- */
-int se97_read_temperature(se97_t *self)
-{
-    /* Output registers are 16 bit wide -> use word data functions */
-    int32_t ret;
-    if ((ret=i2c_smbus_read_word_data(self->dev_temp_file, SE97B_TEMPERATURE_REG))<0) {
-        fprintf(stderr, "Error: Reading temperature from SE97B on I2C %d ADR 0x%x failed\n", 
-                self->dev_i2cbus,self->dev_eeprom_address);
-        return -1;
-    } else {
-        self->last_temperature=((float)((int16_t)((ret<<3) & 0x0000FFFF)))*0.0078125;
+        return ret;
     }
     return 0;
 }
@@ -232,25 +260,43 @@ static int jc42_temp_from_reg(int16_t reg)
 }
 
 /*
- * Read temperature from the chip and stores in memory result as 16 bit value.
+ * Updates the temperatures from the chip and stores the results in memory
  */
-static int se97_update_temp(se97_t *self)
+static int se97_update_device(se97_t *self)
 {
-    /* Output registers are 16 bit wide -> use word data functions */
-    int32_t ret  = i2c_smbus_read_word_data(self->dev_temp_file, 
-            SE97B_TEMPERATURE_REG);
-    if (ret < 0) {
-        fprintf(stderr, "Error: Reading temperature from SE97B on I2C %d ADR 0x%x failed\n", 
-                self->dev_i2cbus, self->dev_temp_address);
-        return -1;
-    } else {
-        self->last_temperature=((float)((int16_t)((ret<<3) & 0x0000FFFF)))*0.0078125;
+    int i;
+    int32_t val;
+    struct timespec current;
+    long elapsed_ms;
+
+    clock_gettime( CLOCK_MONOTONIC_RAW, &current);
+    elapsed_ms = (current.tv_sec - self->last_updated.tv_sec) * 1000 \
+                 + (current.tv_nsec - self->last_updated.tv_nsec) / 1000000; 
+
+    if (elapsed_ms > SE97_HZ_MS || !self->data_valid) {
+        for (i = 0; i < t_num_temp; i++) {
+            val = i2c_smbus_read_word_data(self->dev_temp_file, temp_regs[i]);
+            if (val < 0) {
+                fprintf(stderr, "Error reading temperature from SE97B on I2C %d ADR 0x%x failed\n", 
+                        self->dev_i2cbus, self->dev_temp_address);
+                self->data_valid = false;
+                return val;
+            }
+            /* Swap order of low bytes, drop high bytes*/
+            self->temp[i] = (((val & 0x00ffU) << 8) | ((val & 0xff00U) >> 8) \
+                    & 0x0000ffffU);
+        }
+        clock_gettime( CLOCK_MONOTONIC_RAW, &self->last_updated);
+        self->data_valid = true;
     }
+
     return 0;
 }
 
-int se97_read_temp_raw (se97_t *self, int *val)
+int se97_read_temp(se97_t *self, int index, int *val)
 {
-    *val = 0;
-    return 0;
+    int ret;
+    ret = se97_update_device(self);
+    *val = jc42_temp_from_reg(self->temp[index]);
+    return ret;
 }
