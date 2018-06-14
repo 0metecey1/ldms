@@ -26,6 +26,7 @@ struct _se97_t {
     char dev_eeprom_filename[128];
     float last_temperature;
 	uint8_t eeprom_data[8];
+    uint16_t raw_temp[4];
 };
 
 typedef struct _se97_t se97_t;
