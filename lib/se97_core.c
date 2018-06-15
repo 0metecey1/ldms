@@ -1,8 +1,8 @@
-/* File: tmp116_core.c
+/* File: se97_core.c
  * Author: Torsten Coym / Oliver Langguth
- * Created: 25.08.2014
+ * Created: 04.06.2018
  *
- * Basic routines to communicate with the MCDC04 via I2C
+ * Basic routines to communicate with the NXP SE97B via I2C
  * Written in a way to be easily migrated to an industrial I/O (IIO) 
  * kernel framework driver
  */
@@ -13,14 +13,10 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-//#include <string.h>
 #include <assert.h>
-//#include <getopt.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
-//#include <linux/types.h>
 #include <time.h>
-//#include <errno.h>
 #include <linux/i2c-dev-user.h>
 #include "se97.h"
 #include "i2cbusses.h"
@@ -45,6 +41,13 @@
 #define JC42_REG_MANID		0x06
 #define JC42_REG_DEVICEID	0x07
 
+/* Configuration register defines */
+#define JC42_CFG_CRIT_ONLY	(1 << 2)
+#define JC42_CFG_TCRIT_LOCK	(1 << 6)
+#define JC42_CFG_EVENT_LOCK	(1 << 7)
+#define JC42_CFG_SHUTDOWN	(1 << 8)
+#define JC42_CFG_HYST_SHIFT	9
+#define JC42_CFG_HYST_MASK	(0x03 << 9)
 /*
  * swap - swap value of @a and @b
  */
@@ -134,8 +137,6 @@ struct _se97_t {
     int dev_eeprom_address;
     int dev_eeprom_file;
     char dev_eeprom_filename[128];
-    float last_temperature; /* REMOVE! */
-    uint8_t eeprom_data[8];
     bool extended;	/* true if extended range supported */
     bool data_valid;
     struct timespec last_updated;	/* In in seconds/nanoseconds */
@@ -149,10 +150,11 @@ se97_t *se97_create(int i2cbus, int address)
     se97_t *self = (se97_t *) calloc(1, (sizeof (se97_t)));
     int ret = 0;
     int force = 0;
+    int16_t config, config_swp;
+    int32_t val;
 
     /* open i2c device and provide i2c bus specific settings */
-    if (!self)
-        return NULL;
+    assert(self);
     self->dev_i2cbus = i2cbus;
     self->dev_temp_address = address;
     self->dev_eeprom_address = address+0x38;
@@ -160,22 +162,34 @@ se97_t *se97_create(int i2cbus, int address)
             sizeof(self->dev_temp_filename), 0);
     if ((self->dev_temp_file < 0) || set_slave_addr(self->dev_temp_file, self->dev_temp_address, force)) {
         fprintf(stderr, "Error: opening i2c SE97 temperature device failed\n");
-        free(self);
-        return NULL;
     }
     self->dev_eeprom_file = open_i2c_dev(self->dev_i2cbus, self->dev_eeprom_filename, 
             sizeof(self->dev_eeprom_filename), 0);
     if ((self->dev_eeprom_file < 0) || set_slave_addr(self->dev_eeprom_file, self->dev_eeprom_address, force)) {
         fprintf(stderr, "Error: opening i2c SE97 eeprom device failed\n");
-        free(self);
-        return NULL;
     }
+
+    val = i2c_smbus_read_word_data(self->dev_temp_file, SE97B_CONFIG_REG);
+    if (val < 0) {
+        config = SE97B_CONFIG_MODE_NORMAL;
+    }
+    /* Swap order of low bytes, drop high bytes*/
+    config = (((val & 0x00ffU) << 8) | ((val & 0xff00U) >> 8) \
+            & 0x0000ffffU);
+
+    self->orig_config = config;
+	if (config & JC42_CFG_SHUTDOWN) {
+		config &= ~JC42_CFG_SHUTDOWN;
+        /* Swap order of low bytes, drop high bytes*/
+        config_swp = (((config & 0x00ffU) << 8) | ((config & 0xff00U) >> 8) \
+                & 0x0000ffffU);
+        i2c_smbus_write_word_data(self->dev_temp_file, JC42_REG_CONFIG, config_swp);
+    }
+    self->config = config;
 
     ret = i2c_smbus_write_word_data(self->dev_temp_file, SE97B_CONFIG_REG, SE97B_CONFIG_MODE_NORMAL);
     if (ret < 0) {
         fprintf(stderr, "Error: write to SE97B configuration register failed\n");
-        close(self->dev_temp_file);
-        return NULL;
     }
     return self;
 }
@@ -187,14 +201,25 @@ void se97_destroy(se97_t **self_p)
 {
     assert (self_p);
     if (*self_p) {
+        int16_t config, config_swp;
         se97_t *self = *self_p;
+        /* Restore original configuration except hysteresis */
+        if ((self->config & ~JC42_CFG_HYST_MASK) !=
+                (self->orig_config & ~JC42_CFG_HYST_MASK)) {
+
+            config = (self->orig_config & ~JC42_CFG_HYST_MASK)
+                | (self->config & JC42_CFG_HYST_MASK);
+            /* Swap order of low bytes, drop high bytes*/
+            config_swp = (((config & 0x00ffU) << 8) | ((config & 0xff00U) >> 8) \
+                    & 0x0000ffffU);
+            i2c_smbus_write_word_data(self->dev_temp_file, JC42_REG_CONFIG, config_swp);
+        }
         close(self->dev_temp_file);
         close(self->dev_eeprom_file);
         free(self);
         *self_p = NULL;
     }
 }
-
 
 /*
  * Write eeprom data to se97
@@ -205,8 +230,6 @@ int se97_write_eeprom(se97_t *self, const char *buf)
     ret = i2c_smbus_write_i2c_block_data(self->dev_eeprom_file, 
             EEPROM_ID_START, EEPROM_ID_LENGTH, buf);
     if (ret < 0) {
-        fprintf(stderr, "Error: Writing EEPROM from SE97B on I2C %d ADR 0x%x failed\n", 
-                self->dev_i2cbus,self->dev_eeprom_address);
         return ret;
     }
     return 0;
@@ -220,8 +243,6 @@ int se97_read_eeprom(se97_t *self, char *buf)
     int32_t ret;
     if ((ret = i2c_smbus_read_i2c_block_data(self->dev_eeprom_file, 
                     EEPROM_ID_START, EEPROM_ID_LENGTH, buf)) < 0) {
-        fprintf(stderr, "Error: Reading EEPROM from SE97B on I2C %d ADR 0x%x failed\n", 
-                self->dev_i2cbus,self->dev_eeprom_address);
         return ret;
     }
     return 0;
@@ -243,20 +264,20 @@ static inline int32_t sign_extend32(uint32_t value, int index)
 
 static uint16_t jc42_temp_to_reg(long temp, bool extended)
 {
-	int ntemp = clamp_val(temp,
-			      extended ? JC42_TEMP_MIN_EXTENDED :
-			      JC42_TEMP_MIN, JC42_TEMP_MAX);
+    int ntemp = clamp_val(temp,
+            extended ? JC42_TEMP_MIN_EXTENDED :
+            JC42_TEMP_MIN, JC42_TEMP_MAX);
 
-	/* convert from 0.001 to 0.0625 resolution */
-	return (ntemp * 2 / 125) & 0x1fff;
+    /* convert from 0.001 to 0.0625 resolution */
+    return (ntemp * 2 / 125) & 0x1fff;
 }
 
 static int jc42_temp_from_reg(int16_t reg)
 {
-	reg = sign_extend32(reg, 12);
+    reg = sign_extend32(reg, 12);
 
-	/* convert from 0.0625 to 0.001 resolution */
-	return reg * 125 / 2;
+    /* convert from 0.0625 to 0.001 resolution */
+    return reg * 125 / 2;
 }
 
 /*
@@ -277,8 +298,6 @@ static int se97_update_device(se97_t *self)
         for (i = 0; i < t_num_temp; i++) {
             val = i2c_smbus_read_word_data(self->dev_temp_file, temp_regs[i]);
             if (val < 0) {
-                fprintf(stderr, "Error reading temperature from SE97B on I2C %d ADR 0x%x failed\n", 
-                        self->dev_i2cbus, self->dev_temp_address);
                 self->data_valid = false;
                 return val;
             }
@@ -295,8 +314,7 @@ static int se97_update_device(se97_t *self)
 
 int se97_read_temp(se97_t *self, int index, int *val)
 {
-    int ret;
-    ret = se97_update_device(self);
+    int ret = se97_update_device(self);
     *val = jc42_temp_from_reg(self->temp[index]);
     return ret;
 }
