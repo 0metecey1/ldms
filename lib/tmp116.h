@@ -15,22 +15,12 @@
 	
 	
 //  Opaque class structures to allow forward references
-struct _tmp116_t {
-    int dev_i2cbus;
-    int dev_address;
-    int dev_file;
-    char dev_filename[128];
-    float last_temperature;
-	unsigned int eeprom_data[4];
-};
-
 typedef struct _tmp116_t tmp116_t;
 
 tmp116_t *tmp116_create(int i2cbus, int address);
 void tmp116_destroy(tmp116_t **self_p);
-int tmp116_write_eeprom(tmp116_t *self);
-int tmp116_read_eeprom(tmp116_t *self);
-int tmp116_read_temperature(tmp116_t *self);
-int luaopen_tmp116(lua_State *L);
+int tmp116_write_eeprom(tmp116_t *self, const char *buf);
+int tmp116_read_eeprom(tmp116_t *self, char *buf);
+int tmp116_read_temp(tmp116_t *self, int index, int *val);
 #endif
 

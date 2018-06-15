@@ -183,11 +183,10 @@ se97_t *se97_create(int i2cbus, int address)
         /* Swap order of low bytes, drop high bytes*/
         config_swp = (((config & 0x00ffU) << 8) | ((config & 0xff00U) >> 8) \
                 & 0x0000ffffU);
-        i2c_smbus_write_word_data(self->dev_temp_file, JC42_REG_CONFIG, config_swp);
+        ret = i2c_smbus_write_word_data(self->dev_temp_file, JC42_REG_CONFIG, config_swp);
     }
     self->config = config;
 
-    ret = i2c_smbus_write_word_data(self->dev_temp_file, SE97B_CONFIG_REG, SE97B_CONFIG_MODE_NORMAL);
     if (ret < 0) {
         fprintf(stderr, "Error: write to SE97B configuration register failed\n");
     }

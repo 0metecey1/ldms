@@ -114,19 +114,28 @@
 //Device ID = 0xa116  a=not used
 #define TMP116_DEVICE_ID_REG					0x0F
 
-
-
-
+struct _tmp116_t {
+    int dev_i2cbus;
+    int dev_address;
+    int dev_file;
+    char dev_filename[128];
+    float last_temperature;
+    bool data_valid;
+    struct timespec last_updated;	/* In in seconds/nanoseconds */
+    uint16_t orig_config;	/* original configuration */
+    uint16_t config;		/* current configuration */
+    uint16_t temp[t_num_temp];/* Temperatures */
+};
 
 tmp116_t *tmp116_create(int i2cbus, int address)
 {
     tmp116_t *self = (tmp116_t *) calloc(1, (sizeof (tmp116_t)));
     int ret = 0;
     int force = 0;
+    int16_t config, config_swp;
 
     /* open i2c device and provide i2c bus specific settings */
-    if (!self)
-        return NULL;
+    assert(self);
     self->dev_i2cbus = i2cbus;
     self->dev_address = address;
     self->dev_file = open_i2c_dev(self->dev_i2cbus, self->dev_filename,
@@ -134,22 +143,34 @@ tmp116_t *tmp116_create(int i2cbus, int address)
     if ((self->dev_file < 0) || set_slave_addr(self->dev_file, 
                 self->dev_address, force)) {
         fprintf(stderr, "Error: opening i2c device failed\n");
-        free(self);
-        return NULL;
     }
 
-    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_CONFIGURATION_REG, \
-            TMP116_MODE_CONTINUOUS_CONV \
-            | TMP116_CONV_CYCLE_011 \
-            | TMP116_AVG_MODE_8_AVERAGES \
-            | TMP116_THERM_ALERT_MODE_ALERT \
-            | TMP116_ALERT_POLARITY_ACTIVELOW \
-            | TMP116_ALERT_PIN_SELECT_ALERTFLG);
+    /* Read original configuration */
+    val = i2c_smbus_read_word_data(self->dev_temp_file, SE97B_CONFIG_REG);
+    if (val < 0) {
+        fprintf(stderr, "Error: read from i2c device failed\n");
+        return self;
+    }
+    /* Swap order of low bytes, drop high bytes*/
+    config = (((val & 0x00ffU) << 8) | ((val & 0xff00U) >> 8) \
+            & 0x0000ffffU);
+
+    self->orig_config = config;
+    config = TMP116_MODE_CONTINUOUS_CONV \
+             | TMP116_CONV_CYCLE_011 \
+             | TMP116_AVG_MODE_8_AVERAGES \
+             | TMP116_THERM_ALERT_MODE_ALERT \
+             | TMP116_ALERT_POLARITY_ACTIVELOW \
+             | TMP116_ALERT_PIN_SELECT_ALERTFLG;
+
+    config_swp = (((config & 0x00ffU) << 8) | ((config & 0xff00U) >> 8) \
+            & 0x0000ffffU);
+    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_CONFIGURATION_REG, 
+            config_swp);
     if (ret < 0) {
         fprintf(stderr, "Error: write to TMP116 configuration register failed\n");
-        close(self->dev_file);
-        return NULL;
     }
+    self->config = config;
     return self;
 }
 
