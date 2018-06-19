@@ -8,6 +8,7 @@
  */
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -23,6 +24,8 @@
 #include <linux/i2c-dev-user.h>
 #include "tmp116.h"
 #include "i2cbusses.h"
+
+#define TMP116_HZ_MS 10
 
 #define TMP116_HIGH_ALERT_FLAG					0x8000
 #define TMP116_HIGH_ALERT_HIGH_LIMIT_REACHED	0x8000
@@ -114,6 +117,22 @@
 //Device ID = 0xa116  a=not used
 #define TMP116_DEVICE_ID_REG					0x0F
 
+#define EEPROM_ID_START		0x05
+#define EEPROM_ID_LENGTH	0x04
+
+enum temp_index {
+	t_input = 0,
+	t_min,
+	t_max,
+	t_num_temp
+};
+
+static const uint8_t temp_regs[t_num_temp] = {
+	[t_input] = TMP116_TEMPERATURE_REG,
+	[t_min] = TMP116_HIGHLIMIT_REG,
+	[t_max] = TMP116_LOWLIMIT_REG	
+};
+
 struct _tmp116_t {
     int dev_i2cbus;
     int dev_address;
@@ -133,6 +152,7 @@ tmp116_t *tmp116_create(int i2cbus, int address)
     int ret = 0;
     int force = 0;
     int16_t config, config_swp;
+    int32_t val;
 
     /* open i2c device and provide i2c bus specific settings */
     assert(self);
@@ -146,7 +166,7 @@ tmp116_t *tmp116_create(int i2cbus, int address)
     }
 
     /* Read original configuration */
-    val = i2c_smbus_read_word_data(self->dev_temp_file, SE97B_CONFIG_REG);
+    val = i2c_smbus_read_word_data(self->dev_file, TMP116_CONFIGURATION_REG);
     if (val < 0) {
         fprintf(stderr, "Error: read from i2c device failed\n");
         return self;
@@ -188,81 +208,169 @@ void tmp116_destroy(tmp116_t **self_p)
     }
 }
 
-
 /*
  * Write eeprom data to tmp116
  */
-int tmp116_write_eeprom(tmp116_t *self)
+int tmp116_write_eeprom(tmp116_t *self, const char *buf)
 {
-    int ret;
-    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_EEPROM_UNLOCK_REG, TMP116_EEPROM_UNLOCK);
+    int32_t ret;
+    ret = i2c_smbus_write_i2c_block_data(self->dev_file, 
+            EEPROM_ID_START, EEPROM_ID_LENGTH, buf);
     if (ret < 0) {
-        fprintf(stderr, "Error: Unlocking EEPROM from TMP116 on I2C %d ADR 0x%x failed\n", 
-                self->dev_i2cbus,self->dev_address);
-        return -1;
+        return ret;
     }
-    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_EEPROM_REG1, self->eeprom_data[0]);
-    if (ret < 0) {
-        fprintf(stderr, "Error: write to TMP116 EEPROM1 on I2C %d ADR 0x%x failed\n", 
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    }
-    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_EEPROM_REG2, self->eeprom_data[1]);
-    if (ret < 0) {
-        fprintf(stderr, "Error: write to TMP116 EEPROM1 on I2C %d ADR 0x%x failed\n", 
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    }
-    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_EEPROM_REG3, self->eeprom_data[2]);
-    if (ret < 0) {
-        fprintf(stderr, "Error: write to TMP116 EEPROM1 on I2C %d ADR 0x%x failed\n",
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    }
-    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_EEPROM_REG4, self->eeprom_data[3]);
-    if (ret < 0) {
-        fprintf(stderr, "Error: write to TMP116 EEPROM1 on I2C %d ADR 0x%x failed\n",
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    }
-    ret = i2c_smbus_write_word_data(self->dev_file, TMP116_EEPROM_UNLOCK_REG, 
-            TMP116_EEPROM_LOCK);
-    if (ret < 0) {
-        fprintf(stderr, "Error: Locking EEPROM from TMP116 on I2C %d ADR 0x%x failed\n",
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    }
+    return 0;
 }
 
 /*
  * Read eeprom data from tmp116
  */
-int tmp116_read_eeprom(tmp116_t *self)
+int tmp116_read_eeprom(tmp116_t *self, char *buf)
 {
-    long ret;
-    if ((ret=i2c_smbus_read_word_data(self->dev_file, TMP116_EEPROM_REG1))<0) {
-        fprintf(stderr, "Error: Reading EEPROM1 from TMP116 on I2C %d ADR 0x%x failed\n",
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    } else self->eeprom_data[0]=(unsigned int)(ret & 0x0000FFFF);
-    if ((ret=i2c_smbus_read_word_data(self->dev_file, TMP116_EEPROM_REG2))<0) {
-        fprintf(stderr, "Error: Reading EEPROM2 from TMP116 on I2C %d ADR 0x%x failed\n",
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    } else self->eeprom_data[1]=(unsigned int)(ret & 0x0000FFFF);
-    if ((ret=i2c_smbus_read_word_data(self->dev_file, TMP116_EEPROM_REG3))<0) {
-        fprintf(stderr, "Error: Reading EEPROM3 from TMP116 on I2C %d ADR 0x%x failed\n",
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    } else self->eeprom_data[2]=(unsigned int)(ret & 0x0000FFFF);
-    if ((ret=i2c_smbus_read_word_data(self->dev_file, TMP116_EEPROM_REG4))<0) {
-        fprintf(stderr, "Error: Reading EEPROM4 from TMP116 on I2C %d ADR 0x%x failed\n",
-                self->dev_i2cbus,self->dev_address);
-        return -1;
-    } else self->eeprom_data[3]=(unsigned int)(ret & 0x0000FFFF);
+    int32_t ret;
+    if ((ret = i2c_smbus_read_i2c_block_data(self->dev_file, 
+                    EEPROM_ID_START, EEPROM_ID_LENGTH, buf)) < 0) {
+        return ret;
+    }
     return 0;
 }
 
+#define TMP116_TEMP_MIN_EXTENDED	(-55000)
+#define TMP116_TEMP_MIN		0
+#define TMP116_TEMP_MAX		125000
+/*
+ * swap - swap value of @a and @b
+ */
+#define swap(a, b) \
+    do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
+
+/*
+ * min()/max()/clamp() macros that also do
+ * strict type-checking.. See the
+ * "unnecessary" pointer comparison.
+ */
+#define min(x, y) ({				\
+	typeof(x) _min1 = (x);			\
+	typeof(y) _min2 = (y);			\
+	(void) (&_min1 == &_min2);		\
+	_min1 < _min2 ? _min1 : _min2; })
+
+#define max(x, y) ({				\
+	typeof(x) _max1 = (x);			\
+	typeof(y) _max2 = (y);			\
+	(void) (&_max1 == &_max2);		\
+	_max1 > _max2 ? _max1 : _max2; })
+
+#define clamp(val, lo, hi) min((typeof(val))max(val, lo), hi)
+
+/*
+ * ..and if you can't take the strict
+ * types, you can specify one yourself.
+ *
+ * Or not use min/max/clamp at all, of course.
+ */
+#define min_t(type, x, y) ({			\
+	type __min1 = (x);			\
+	type __min2 = (y);			\
+	__min1 < __min2 ? __min1: __min2; })
+
+#define max_t(type, x, y) ({			\
+	type __max1 = (x);			\
+	type __max2 = (y);			\
+	__max1 > __max2 ? __max1: __max2; })
+
+/**
+ * sign_extend32 - sign extend a 32-bit value using specified bit as sign-bit
+ * @value: value to sign extend
+ * @index: 0 based bit index (0<=index<32) to sign bit
+ */
+static inline int32_t sign_extend32(uint32_t value, int index)
+{
+    uint8_t shift = 31 - index;
+    return (int32_t)(value << shift) >> shift;
+}
+
+/**
+ * clamp_t - return a value clamped to a given range using a given type
+ * @type: the type of variable to use
+ * @val: current value
+ * @lo: minimum allowable value
+ * @hi: maximum allowable value
+ *
+ * This macro does no typechecking and uses temporary variables of type
+ * 'type' to make all the comparisons.
+ */
+#define clamp_t(type, val, lo, hi) min_t(type, max_t(type, val, lo), hi)
+
+/**
+ * clamp_val - return a value clamped to a given range using val's type
+ * @val: current value
+ * @lo: minimum allowable value
+ * @hi: maximum allowable value
+ *
+ * This macro does no typechecking and uses temporary variables of whatever
+ * type the input argument 'val' is.  This is useful when val is an unsigned
+ * type and min and max are literals that will otherwise be assigned a signed
+ * integer type.
+ */
+#define clamp_val(val, lo, hi) clamp_t(typeof(val), val, lo, hi)
+
+static uint16_t tmp116_temp_to_reg(long temp, bool extended)
+{
+    int ntemp = clamp_val(temp,
+            extended ? TMP116_TEMP_MIN_EXTENDED :
+            TMP116_TEMP_MIN, TMP116_TEMP_MAX);
+
+    /* convert from 0.001 to 0.0078125 resolution */
+    return (ntemp * 16 / 125) & 0x1fff;
+}
+
+static int tmp116_temp_from_reg(int16_t reg)
+{
+    reg = sign_extend32(reg, 12);
+
+    /* convert from 0.0078125 to 0.001 resolution */
+    return reg * 125 / 16;
+}
+
+/*
+ * Updates the temperatures from the chip and stores the results in memory
+ */
+static int tmp116_update_device(tmp116_t *self)
+{
+    int i;
+    int32_t val;
+    struct timespec current;
+    long elapsed_ms;
+
+    clock_gettime( CLOCK_MONOTONIC_RAW, &current);
+    elapsed_ms = (current.tv_sec - self->last_updated.tv_sec) * 1000 \
+                 + (current.tv_nsec - self->last_updated.tv_nsec) / 1000000; 
+
+    if (elapsed_ms > TMP116_HZ_MS || !self->data_valid) {
+        for (i = 0; i < t_num_temp; i++) {
+            val = i2c_smbus_read_word_data(self->dev_file, temp_regs[i]);
+            if (val < 0) {
+                self->data_valid = false;
+                return val;
+            }
+            /* Swap order of low bytes, drop high bytes*/
+            self->temp[i] = (((val & 0x00ffU) << 8) | ((val & 0xff00U) >> 8) \
+                    & 0x0000ffffU);
+        }
+        clock_gettime( CLOCK_MONOTONIC_RAW, &self->last_updated);
+        self->data_valid = true;
+    }
+
+    return 0;
+}
+
+int tmp116_read_temp(tmp116_t *self, int index, int *val)
+{
+    int ret = tmp116_update_device(self);
+    *val = tmp116_temp_from_reg(self->temp[index]);
+    return ret;
+}
 
 /*
  * Read temperature result as 16 bit value.

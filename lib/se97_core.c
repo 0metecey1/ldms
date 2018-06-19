@@ -1,4 +1,4 @@
-/* File: se97_core.c
+ /*
  * Author: Torsten Coym / Oliver Langguth
  * Created: 04.06.2018
  *
