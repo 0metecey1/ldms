@@ -5,6 +5,12 @@
 #include "config.h"
 #include <czmq.h>
 #include <getopt.h>
+#include <sys/ioctl.h>
+#include <net/if.h> 
+#include <unistd.h>
+#include <netinet/in.h>
+#include <string.h>
+
 
 #define PUBLISH_PERIOD_MSEC 5000
 #define BEACON_PUBLISH_PORT 9999 
@@ -29,66 +35,103 @@ static  ldms_config_t *ldms_config;
 
 // ----------------------------------------------------------------------------
 // Read the mac address of the primary network interface, return as a string
-static const char * get_mac_addr(void)
+static const char * get_mac_addr (void)
 {
-    FILE *fp;
-    static char mac_addr_str[18];
+    struct ifreq ifr;
+    struct ifconf ifc;
+    char buf[1024];
+    bool success = false;
 
-    fp = fopen("/sys/class/net/eth0/address", "r");
-    if (fgets(mac_addr_str, 18, fp) == NULL)
-        return NULL;
-    fclose(fp);
+    int sock = socket (AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock == -1) { /* handle error*/ 
+        return "aa:bb:cc:dd:ee:ff";
+    };
+
+    ifc.ifc_len = sizeof (buf);
+    ifc.ifc_buf = buf;
+    if (ioctl (sock, SIOCGIFCONF, &ifc) == -1) { /* handle error */ 
+        close (sock); 
+        return "aa:bb:cc:dd:ee:ff";
+    }
+
+    struct ifreq* it = ifc.ifc_req;
+    const struct ifreq* const end = it + (ifc.ifc_len / sizeof (struct ifreq));
+
+    for (; it != end; ++it) {
+        strcpy (ifr.ifr_name, it->ifr_name);
+        if (ioctl(sock, SIOCGIFFLAGS, &ifr) == 0) {
+            if (! (ifr.ifr_flags & IFF_LOOPBACK)) { // don't count loopback
+                if (ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
+                    success = true;
+                    break;
+                }
+            }
+        }
+        else { /* handle error */ 
+            close (sock); 
+            return "aa:bb:cc:dd:ee:ff";
+        }
+    }
+
+    unsigned char mac_address[6];
+
+    if (success) memcpy (mac_address, ifr.ifr_hwaddr.sa_data, 6);
+    const char *mac_addr_str = zsys_sprintf ("%0.2x:%0.2x:%0.2x:%0.2x:%0.2x:%0.2x", 
+            mac_address[0], mac_address[1], mac_address[2],
+            mac_address[3], mac_address[4], mac_address[5]);
+
+    close (sock);
     return mac_addr_str;
 }
 
 static void print_usage(const char *prog)
 {
-	printf("Usage: %s [-vpuPh]\n", prog);
-	puts("  -v --verbose  Print debugging messages\n"
-	     "  -p --port     Port number to use for connection\n"
-	     "  -u --user     User for login if not current user\n"
-	     "  -P --password Password for login\n"
-	     "  -h --host     Connect to host\n"
-         );
-	exit(1);
+    printf("Usage: %s [-vpuPh]\n", prog);
+    puts("  -v --verbose  Print debugging messages\n"
+            "  -p --port     Port number to use for connection\n"
+            "  -u --user     User for login if not current user\n"
+            "  -P --password Password for login\n"
+            "  -h --host     Connect to host\n"
+        );
+    exit(1);
 }
 
 static void parse_opts(int argc, char *argv[])
 {
-	while (1) {
-		static const struct option lopts[] = {
-			{ "verbose",  0, 0, 'v' },
-			{ "port",  1, 0, 'P' },
-			{ "password",   1, 0, 'p' },
-			{ "user",   1, 0, 'u' },
-			{ "host",   1, 0, 'h' },
-			{ NULL, 0, 0, 0 },
-		};
-		int c;
+    while (1) {
+        static const struct option lopts[] = {
+            { "verbose",  0, 0, 'v' },
+            { "port",  1, 0, 'P' },
+            { "password",   1, 0, 'p' },
+            { "user",   1, 0, 'u' },
+            { "host",   1, 0, 'h' },
+            { NULL, 0, 0, 0 },
+        };
+        int c;
 
-		c = getopt_long(argc, argv, "vP:p:u:h", lopts, NULL);
+        c = getopt_long(argc, argv, "vP:p:u:h", lopts, NULL);
 
-		if (c == -1)
-			break;
+        if (c == -1)
+            break;
 
-		switch (c) {
-		case 'v':
-            verbose = true;
-			break;
-		case 'p':
-            port = atoi(optarg);
-			break;
-		case 'u':
-            user = optarg;
-			break;
-		case 'P':
-            password = optarg;
-			break;
-		default:
-			print_usage(argv[0]);
-			break;
-		}
-	}
+        switch (c) {
+            case 'v':
+                verbose = true;
+                break;
+            case 'p':
+                port = atoi(optarg);
+                break;
+            case 'u':
+                user = optarg;
+                break;
+            case 'P':
+                password = optarg;
+                break;
+            default:
+                print_usage(argv[0]);
+                break;
+        }
+    }
 }
 
 int main(int argc, char *argv[])
@@ -101,7 +144,7 @@ int main(int argc, char *argv[])
     zsys_catch_interrupts ();
     /* Show version string */
     zsys_info ("This is %s\n", PACKAGE_STRING);
-    
+
     //  Create speaker beacon to broadcast our service
     zactor_t *speaker = zactor_new (zbeacon, NULL);
     assert (speaker);
