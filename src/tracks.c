@@ -8,12 +8,12 @@
 #include <lualib.h>
 #include <jansson.h>
 #include "engine.h"
-#include "tlc5948a.h"
-#include "ad5522.h"
-#include "mcdc04.h"
-#include "id.h"
-#include "db.h"
-#include "dib.h"
+#include "../lib/tlc5948a.h"
+#include "../lib/ad5522.h"
+#include "../lib/mcdc04.h"
+#include "../lib/id.h"
+#include "../lib/db.h"
+#include "../lib/dib.h"
 
 #include "waitsupport.h"
 #include "ldms_init.h"

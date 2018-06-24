@@ -27,13 +27,18 @@ AX_PROG_LUA([5.3], [5.4])
 # Check for libraries
 AX_LUA_LIBS
 
+# Check for MySQL/MariaDB client libraries
+WITH_MYSQL()
+MYSQL_USE_CLIENT_API()
+MYSQL_SUBST()
+
 # Check for header files
 # AX_LUA_HEADERS
 
 # Check for typedefs, structures, and compiler characteristics
 
 # Check for library functions
-# PKG_CHECK_MODULES([JANSSON], [jansson >= 2])
+PKG_CHECK_MODULES([JANSSON], [jansson >= 2])
 PKG_CHECK_MODULES([ZMQ], [libzmq >= 4.1])
 PKG_CHECK_MODULES([CZMQ], [libczmq >= 4.1])
 

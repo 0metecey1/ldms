@@ -209,12 +209,14 @@ int main(int argc, char *argv[])
 
     ldms_t *ldms = (ldms_t *) zmalloc (sizeof (ldms_t));
     ldms_start_beacon_service (ldms);
+    ldms_start_lua_tracks (ldms);
 
     /* Main loop */
     while (!zsys_interrupted) {
         zclock_sleep (10u); /* release to let the OS do something else */
     }
 
+    ldms_stop_lua_tracks (ldms);
     ldms_stop_beacon_service (ldms);
     exit (EXIT_SUCCESS);
 }
