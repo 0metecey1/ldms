@@ -10,10 +10,12 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <string.h>
+#include "tracks.h"
 
 
 #define PUBLISH_PERIOD_MSEC 5000
 #define BEACON_PUBLISH_PORT 9999 
+#define LUA_TRACKS_PORT 5560 
 
 typedef struct {
     bool verbose;
@@ -23,6 +25,11 @@ typedef struct {
     char *password;
     char *database;
 } ldms_config_t;
+
+typedef struct {
+    zactor_t *speaker;
+    zactor_t *lua_tracks;
+} ldms_t;
 
 static int port = 3306;
 static bool verbose = false;
@@ -134,6 +141,61 @@ static void parse_opts(int argc, char *argv[])
     }
 }
 
+static void ldms_start_beacon_service (ldms_t *self)
+{
+    //  Create speaker beacon to broadcast our service
+    self->speaker = zactor_new (zbeacon, NULL);
+    assert (self->speaker);
+    zsys_info ("Beacon service initialized");
+
+    zsock_send (self->speaker, "si", "CONFIGURE", BEACON_PUBLISH_PORT);
+    char *hostname = zstr_recv (self->speaker);
+    if (!*hostname) {
+        exit(EXIT_FAILURE);
+    }
+    free (hostname);
+    zsys_info ("Beacon service configured");
+    //  We will broadcast the magic value 'VP'+mac address string
+    //  "VP AA:BB:CC:DD:EE:FF"
+    byte announcement [21] = {'V', 'P', ' ' };
+    strcat ((char *)announcement, get_mac_addr ());
+    // Publish announcement every 5000ms
+    zsock_send (self->speaker, "sbi", "PUBLISH", announcement, 20, PUBLISH_PERIOD_MSEC);
+    zsys_info ("Publish [[%s]] every %d ms", announcement, PUBLISH_PERIOD_MSEC);
+}
+
+static void ldms_stop_beacon_service (ldms_t *self)
+{
+    /* Tear down the beacon */
+    zstr_sendx (self->speaker, "SILENCE", NULL);
+    zsys_info ("Tear down beacon service");
+    zactor_destroy (&self->speaker);
+}
+
+static void ldms_start_lua_tracks (ldms_t *self)
+{
+    //  Create speaker beacon to broadcast our service
+    self->lua_tracks = zactor_new (tracks, NULL);
+    assert (self->lua_tracks);
+    zsys_info ("Lua tracks service initialized");
+
+    zsock_send (self->lua_tracks, "si", "CONFIGURE", LUA_TRACKS_PORT);
+    char *hostname = zstr_recv (self->lua_tracks);
+    if (!*hostname) {
+        exit(EXIT_FAILURE);
+    }
+    free (hostname);
+    zsys_info ("Lua tracks service configured");
+}
+
+static void ldms_stop_lua_tracks (ldms_t *self)
+{
+    /* Tear down the beacon */
+    zstr_sendx (self->lua_tracks, "SILENCE", NULL);
+    zsys_info ("Tear down Lua tracks service");
+    zactor_destroy (&self->lua_tracks);
+}
+
 int main(int argc, char *argv[])
 {
     parse_opts (argc, argv);
@@ -145,34 +207,14 @@ int main(int argc, char *argv[])
     /* Show version string */
     zsys_info ("This is %s\n", PACKAGE_STRING);
 
-    //  Create speaker beacon to broadcast our service
-    zactor_t *speaker = zactor_new (zbeacon, NULL);
-    assert (speaker);
-    zsys_info ("Beacon service initialized");
-
-    zsock_send (speaker, "si", "CONFIGURE", BEACON_PUBLISH_PORT);
-    char *hostname = zstr_recv (speaker);
-    if (!*hostname) {
-        exit(EXIT_FAILURE);
-    }
-    free (hostname);
-    zsys_info ("Beacon service configured");
-    //  We will broadcast the magic value 'VP'+mac address string
-    //  "VP AA:BB:CC:DD:EE:FF"
-    byte announcement [21] = {'V', 'P', ' ' };
-    strcat ((char *)announcement, get_mac_addr ());
-    // Publish announcement every 5000ms
-    zsock_send (speaker, "sbi", "PUBLISH", announcement, 20, PUBLISH_PERIOD_MSEC);
-    zsys_info ("Publish [[%s]] every %d ms", announcement, PUBLISH_PERIOD_MSEC);
+    ldms_t *ldms = (ldms_t *) zmalloc (sizeof (ldms_t));
+    ldms_start_beacon_service (ldms);
 
     /* Main loop */
     while (!zsys_interrupted) {
         zclock_sleep (10u); /* release to let the OS do something else */
     }
 
-    /* Tear down the beacon */
-    zstr_sendx (speaker, "SILENCE", NULL);
-    zsys_info ("Tear down beacon service");
-    zactor_destroy (&speaker);
+    ldms_stop_beacon_service (ldms);
     exit (EXIT_SUCCESS);
 }
