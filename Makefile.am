@@ -14,6 +14,7 @@ check_PROGRAMS = test_se97
 
 # per-binary settings
 ldms_SOURCES = src/ldms.c src/tracks.c src/engine.c
+ldms_SOURCES += src/waitsupport.h src/ldms_init.h src/tracks.h src/engine.h
 # This links all modules statically in one monolithic application
 ldms_SOURCES += lib/db.h lib/db_lua.c 
 ldms_SOURCES += lib/i2cbusses.c lib/i2cbusses.h 
@@ -24,8 +25,8 @@ ldms_SOURCES += lib/pca9536_core.c lib/pca9536_lua.c lib/pca9536.h
 ldms_SOURCES += lib/pca9632_core.c lib/pca9632_lua.c lib/pca9632.h
 ldms_SOURCES += lib/tmp116_core.c lib/tmp116_lua.c lib/tmp116.h
 ldms_SOURCES += lib/se97_core.c lib/se97_lua.c lib/se97.h
-ldms_SOURCES += lib/id_lua.c
-ldms_SOURCES += lib/dib_lua.c
+ldms_SOURCES += lib/id_lua.c lib/id.h
+ldms_SOURCES += lib/dib_lua.c lib/dib.h
 # SHALL be removed as soon as possible. Use dynamic linking for Lua modules instead
 ldms_CFLAGS = ${MYSQL_CFLAGS} $(LUA_INCLUDE) ${CZMQ_CFLAGS} ${ZMQ_CFLAGS} ${JANSSON_CFLAGS}
 ldms_LDFLAGS = ${MYSQL_LDFLAGS} $(LUA_LIB) ${CZMQ_LIBS} ${ZMQ_LIBS} ${JANSSON_LIBS}
