@@ -8,6 +8,10 @@
 #include <lualib.h>
 #include <jansson.h>
 #include "engine.h"
+#include "../lib/se97.h"
+#include "../lib/tmp116.h"
+#include "../lib/pca9536.h"
+#include "../lib/pca9632.h"
 #include "../lib/tlc5948a.h"
 #include "../lib/ad5522.h"
 #include "../lib/mcdc04.h"
@@ -104,6 +108,20 @@ s_self_spawn_lua (self_t *self)
         lua_status_encode(self->root, "error", "could not load wait_support.lua");
         return -1;
     }
+
+    
+    //////////////////////////////////////////////////////////////////////////////// 
+    // EDIT
+    luaL_requiref(self->L, "se97", luaopen_se97, true);
+    luaL_requiref(self->L, "tmp116", luaopen_tmp116, true);
+    luaL_requiref(self->L, "pca9536", luaopen_pca9536, true);
+    luaL_requiref(self->L, "pca9632", luaopen_pca9632, true);
+    // END OF EDIT
+    //////////////////////////////////////////////////////////////////////////////// 
+
+
+
+
     luaL_requiref(self->L, "tlc5948a", luaopen_tlc5948a, true);
     /* Initialize LED driver object and make methods available */
     // led = tlc5948a.new("/dev/spidev2.0")
