@@ -22,5 +22,6 @@ void tmp116_destroy(tmp116_t **self_p);
 int tmp116_write_eeprom(tmp116_t *self, const char *buf);
 int tmp116_read_eeprom(tmp116_t *self, char *buf);
 int tmp116_read_temp(tmp116_t *self, int index, int *val);
+int luaopen_tmp116(lua_State *L);
 #endif
 

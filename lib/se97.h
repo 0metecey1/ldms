@@ -21,5 +21,6 @@ void se97_destroy(se97_t **self_p);
 int se97_write_eeprom(se97_t *self, const char *buf);
 int se97_read_eeprom(se97_t *self, char *buf);
 int se97_read_temp(se97_t *self, int index, int *val);
+int luaopen_se97(lua_State *L);
 #endif
 
